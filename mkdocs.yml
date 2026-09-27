@@ -51,22 +51,21 @@ nav:
       - "Модуль 2. Розширені запити та аналіз даних у SQL (SQLite)":
           - "7. Об'єднання таблиць: INNER, LEFT, RIGHT, CROSS JOIN": lectures/07-joins.md
           - "8. Агрегатні функції: AVG, COUNT, MIN, MAX, SUM": lectures/08-aggregate-functions.md
-          - "9. Групування даних (GROUP BY)": lectures/09-group-by.md
-          - "10. Відбір груп (HAVING)": lectures/10-having.md
-          - "11. Сортування та фільтрація: ORDER BY, DISTINCT, BETWEEN, IN, LIKE": lectures/11-sorting-filtering.md
-          - "12. Запити форматування таблиць": lectures/12-formatting-queries.md
+          - "9. Групування даних (GROUP BY). Відбір груп (HAVING)": lectures/09-group-by.md
+          - "10. Сортування та фільтрація: ORDER BY, DISTINCT, BETWEEN, IN, LIKE": lectures/10-sorting-filtering.md
+          - "11. Запити форматування таблиць": lectures/11-formatting-queries.md
       - "Модуль 3. Транзакції, індекси та оптимізація запитів, імпорт даних (SQLite)":
-          - "13. Принципи ACID і необхідність транзакцій": lectures/13-acid.md
-          - "14. Транзакції у SQLite: BEGIN, COMMIT, ROLLBACK": lectures/14-transactions.md
-          - "15. Індекси в SQLite. Оптимізація запитів, EXPLAIN": lectures/15-indexes.md
-          - "16. Імпорт даних: CSV → SQLite": lectures/16-csv-import.md
-          - "17. Згенеровані стовпці: VIRTUAL і STORED": lectures/17-generated-columns.md
+          - "12. Принципи ACID і необхідність транзакцій": lectures/12-acid.md
+          - "13. Транзакції у SQLite: BEGIN, COMMIT, ROLLBACK": lectures/13-transactions.md
+          - "14. Індекси в SQLite. Оптимізація запитів, EXPLAIN": lectures/14-indexes.md
+          - "15. Імпорт даних: CSV → SQLite": lectures/15-csv-import.md
+          - "16. Згенеровані стовпці: VIRTUAL і STORED": lectures/16-generated-columns.md
       - "Модуль 4. Розширені можливості PostgreSQL":
-          - "18. Перехід до PostgreSQL. Використання PgAdmin": lectures/18-postgres-intro.md
-          - "19. Подання (Views) і матеріалізовані подання (Materialized Views)": lectures/19-views.md
-          - "20. Функції у PostgreSQL": lectures/20-functions.md
-          - "21. Процедури у PostgreSQL": lectures/21-procedures.md
-          - "22. Тригери (Triggers) у PostgreSQL": lectures/22-triggers.md
+          - "17. Перехід до PostgreSQL. Використання PgAdmin": lectures/17-postgres-intro.md
+          - "18. Подання (Views) і матеріалізовані подання (Materialized Views)": lectures/18-views.md
+          - "19. Функції у PostgreSQL": lectures/19-functions.md
+          - "20. Процедури у PostgreSQL": lectures/20-procedures.md
+          - "21. Тригери (Triggers) у PostgreSQL": lectures/21-triggers.md
   - Практичні:
       - "Модуль 1. Основи баз даних і моделювання (SQLite)":
           - "1. Створення бази даних у SQLite": practice/01-sqlite-create.md
@@ -80,19 +79,20 @@ nav:
           - "8. Застосування агрегатних функцій": practice/08-aggregate-functions.md
           - "9. Формування запитів з групуванням даних": practice/09-group-by.md
           - "10. Відбір груп за допомогою HAVING": practice/10-having.md
-          - "11. Сортування та фільтрація даних": practice/11-sorting-filtering.md
-          - "12. Форматування таблиць": practice/12-formatting-queries.md
+          - "11. Комбіновані завдання з групуванням та відбором даних": practice/11-combined-tasks.md
+          - "12. Сортування та фільтрація даних": practice/12-sorting-filtering.md
+          - "13. Форматування таблиць": practice/13-formatting-queries.md
       - "Модуль 3. Транзакції, індекси та оптимізація запитів, імпорт даних (SQLite)":
-          - "13. Створення та відкат транзакцій у SQLite": practice/13-transactions.md
-          - "14. Створення індексів та аналіз ефективності запитів": practice/14-indexes.md
-          - "15. Імпорт даних із CSV у SQLite": practice/15-csv-import.md
-          - "16. Згенеровані стовпці у SQLite": practice/16-generated-columns.md
+          - "14. Створення та відкат транзакцій у SQLite": practice/14-transactions.md
+          - "15. Створення індексів та аналіз ефективності запитів": practice/15-indexes.md
+          - "16. Імпорт даних із CSV у SQLite": practice/16-csv-import.md
+          - "17. Згенеровані стовпці у SQLite": practice/17-generated-columns.md
       - "Модуль 4. Розширені можливості PostgreSQL":
-          - "17. Створення бази даних у PostgreSQL (PgAdmin)": practice/17-postgres-intro.md
-          - "18. Створення та застосування Views у PostgreSQL": practice/18-views.md
-          - "19. Написання функцій у PostgreSQL": practice/19-functions.md
-          - "20. Створення процедур у PostgreSQL": practice/20-procedures.md
-          - "21. Реалізація тригерів": practice/21-triggers.md
+          - "18. Створення бази даних у PostgreSQL (PgAdmin)": practice/18-postgres-intro.md
+          - "19. Створення та застосування Views у PostgreSQL": practice/19-views.md
+          - "20. Написання функцій у PostgreSQL": practice/20-functions.md
+          - "21. Створення процедур у PostgreSQL": practice/21-procedures.md
+          - "22. Реалізація тригерів": practice/22-triggers.md
   - Самостійна робота:
       - "Огляд і графік": independent-study/index.md
       - "Модуль 1": independent-study/module1.md
