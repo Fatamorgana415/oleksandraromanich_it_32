@@ -94,14 +94,14 @@ button { font: inherit; color: inherit; }
 .rail .prog.full { color: var(--good); font-weight: 600; }
 
 main { padding: 40px 28px 110px; min-width: 0; }
-.page { max-width: 840px; display: grid; gap: 34px; }
+.page { max-width: 840px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 34px; }
 .prose { display: grid; gap: 14px; max-width: 66ch; }
 .prose ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
 .eyebrow { font: 0.74rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .lead { font-size: 1.12rem; color: var(--muted); max-width: 62ch; }
 
 /* ---------- lesson sections ---------- */
-.section { display: grid; gap: 16px; scroll-margin-top: 80px; }
+.section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; scroll-margin-top: 80px; }
 .section-head { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
 .section-no { font-family: var(--f-display); font-weight: 700; font-size: 1.55rem; color: var(--pen); }
 .tag-new { font-family: var(--f-hand); font-size: 1.35rem; color: var(--pen); transform: rotate(-4deg); display: inline-block; line-height: 1; }
@@ -123,7 +123,12 @@ main { padding: 40px 28px 110px; min-width: 0; }
 /* ---------- framed objects ---------- */
 .runnable, .bench, .mission, .card { background: var(--surface); border: 1.5px solid var(--frame); box-shadow: var(--shadow); }
 
-.runnable pre { margin: 0; padding: 14px 16px; overflow-x: auto; font: 0.9rem/1.7 var(--f-mono); color: var(--code-fg); background: var(--code-bg); border-bottom: 1px solid var(--line); }
+.runnable { position: relative; }
+.runnable .editor { border: 0; border-bottom: 1px solid var(--line); }
+.runnable .editor pre, .runnable .editor textarea { min-height: 0; padding: 14px 16px; padding-right: 9.5rem; font-size: 0.9rem; }
+.runnable .editor:focus-within { box-shadow: inset 0 0 0 1.5px var(--frame); }
+.runnable .reset-btn { position: absolute; top: 8px; right: 8px; z-index: 2; min-height: 32px; padding: 4px 10px; font-size: 0.78rem; color: var(--pen); border-color: var(--pen); }
+.runnable .reset-btn:hover { box-shadow: 2px 2px 0 var(--pen); }
 .run-bar { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
 .run-out { padding: 12px; border-top: 1px solid var(--line); display: grid; gap: 10px; min-width: 0; }
 .run-out:empty { display: none; }
@@ -172,7 +177,7 @@ table.res tr.moved td.pos { color: var(--pen); font-weight: 600; }
 .err strong { color: var(--pen); }
 
 /* ---------- stepper ---------- */
-.stepper { display: grid; gap: 14px; outline-offset: 4px; }
+.stepper { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; outline-offset: 4px; min-width: 0; }
 .funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(112px, 100%), 1fr)); gap: 6px; }
 .funnel-step {
   display: grid; gap: 7px; padding: 9px 11px; min-height: 52px; text-align: left; cursor: pointer;
@@ -247,6 +252,25 @@ table.res tr.moved td.pos { color: var(--pen); font-weight: 600; }
 .scene li { background: var(--good-soft); border: 1px solid var(--good); padding: 4px 10px; font-size: 0.86rem; animation: land .45s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes land { from { transform: translateY(-12px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* ---------- predict-then-run, thinking prompts, cheat tables ---------- */
+.quiz { border: 1.5px dashed var(--frame); background: var(--surface); padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.quiz-label { font: 600 1.25rem/1 var(--f-hand); color: var(--pen); }
+.quiz-q { font-weight: 600; }
+.quiz-sql { margin: 0; padding: 10px 12px; background: var(--code-bg); border: 1px solid var(--line); font: 0.86rem/1.6 var(--f-mono); overflow-x: auto; white-space: pre-wrap; }
+.quiz-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.quiz-opt.right { background: var(--good-soft); border-color: var(--good); color: var(--good); opacity: 1; font-weight: 600; }
+.quiz-opt.wrong { background: var(--bad-soft); border-color: var(--pen); color: var(--pen); opacity: 1; text-decoration: line-through; }
+.quiz-after { display: grid; gap: 10px; font-size: 0.95rem; }
+.quiz-after .btn { justify-self: start; }
+.think { border: 1px solid var(--line); background: var(--surface-2); padding: 8px 12px; }
+.think summary { cursor: pointer; font: 600 1.15rem/1.3 var(--f-hand); color: var(--pen); }
+.think ul { margin: 8px 0 2px; padding-left: 1.2em; display: grid; gap: 4px; font-size: 0.94rem; }
+table.res.dict td, table.res.dict th { white-space: normal; vertical-align: top; }
+table.res.dict td:first-child { width: 42%; }
+.expect-btn { justify-self: start; background: var(--surface); min-height: 34px; padding: 4px 10px; font-size: 0.82rem; }
+.expected { display: grid; gap: 8px; border: 1.5px dashed var(--line); padding: 10px 12px; }
+.warmup .bench { box-shadow: var(--shadow); }
+
 /* ---------- practice missions ---------- */
 .missions { display: grid; gap: 16px; }
 .mission-head { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px; width: 100%; background: none; border: 0; text-align: left; cursor: pointer; min-height: 64px; }
@@ -300,6 +324,7 @@ table.res tr.moved td.pos { color: var(--pen); font-weight: 600; }
   :root { --shadow: 3px 3px 0 var(--frame); }
 }
 @media (max-width: 640px) {
+  .runnable .editor pre, .runnable .editor textarea { padding-right: 16px; padding-top: 44px; }
   .step-head { grid-template-columns: auto minmax(0, 1fr); }
   .step-note { grid-column: 1 / -1; }
   .step-legend { margin-left: 0; }
@@ -332,7 +357,7 @@ table.res tr.moved td.pos { color: var(--pen); font-weight: 600; }
 
   <section class="prose">
     <p>Понеділок, 09:00. Адміністраторка ветклініки «Лапа» відкриває базу: 24 тварини, 14 власників, 26 візитів за весну. Їй потрібні не «всі рядки як вийде», а конкретні списки: черга за пріоритетом, розсилка, звіт для бухгалтерії. Після цієї лекції ви складатимете такі списки самостійно.</p>
-    <p>Кожен приклад нижче можна виконати кнопкою <strong>Виконати</strong>. Кнопка <strong>Покроково</strong> показує, як SQLite обробляє запит: які рядки відсіяла умова, як змінився порядок, де обрізав LIMIT.</p>
+    <p>Код кожного прикладу нижче можна змінювати й виконувати кнопкою <strong>Виконати</strong> (або Ctrl+Enter). Кнопка <strong>Повернути приклад</strong> угорі праворуч повертає початковий текст. Перед деякими прикладами стоїть питання «Передбачте результат»: спершу подумайте, потім перевірте запуском. Кнопка <strong>Покроково</strong> показує, як SQLite обробляє запит: які рядки відсіяла умова, як змінився порядок, де обрізав LIMIT.</p>
   </section>
 
   <section class="section" data-title="ORDER BY">
@@ -361,6 +386,7 @@ ORDER BY species ASC, age DESC;</pre>
 
   <section class="section" data-title="Українська абетка">
     <div class="section-head"><span class="section-no">03</span><h2>Пастка: українська абетка і SQLite</h2><span class="tag-new">нове</span></div>
+    <div data-quiz="q-alpha"></div>
     <div class="prose">
       <p>Подивіться на результат попереднього прикладу: <strong>кролики стоять перед котами</strong>. SQLite порівнює текст за кодами символів у таблиці Unicode (так зване бінарне порівняння, <code>BINARY</code>). Українські літери <code>і ї є ґ</code> лежать у таблиці поза основним діапазоном <code>а…я</code> і мають більші коди. Тому «кр» опиняється раніше за «кі». З великими літерами навпаки: код «І» менший за код «А», тож Ірис стоїть у списку першим, раніше за Арчі.</p>
     </div>
@@ -375,6 +401,7 @@ ORDER BY name;</pre>
 
   <section class="section" data-title="NULL у сортуванні">
     <div class="section-head"><span class="section-no">04</span><h2>Де опиняється NULL</h2><span class="tag-new">нове</span></div>
+    <div data-quiz="q-null"></div>
     <div class="prose">
       <p>Кролик Сніжок ще не зважений: у колонці <code>weight</code> стоїть <code>NULL</code>. У SQLite <code>NULL</code> вважається меншим за будь-яке значення, тому за <code>ASC</code> він іде першим, а за <code>DESC</code> останнім. З версії 3.30 це можна змінити явно: <code>NULLS FIRST</code> або <code>NULLS LAST</code>.</p>
     </div>
@@ -395,8 +422,13 @@ ORDER BY weight ASC NULLS LAST;</pre>
     </div>
     <div class="pipeline"><span>FROM</span><i>→</i><span>WHERE</span><i>→</i><span>GROUP BY</span><i>→</i><span>HAVING</span><i>→</i><span>SELECT</span><i>→</i><span class="hot">ORDER BY</span><i>→</i><span class="hot">LIMIT</span></div>
     <div class="prose">
-      <p><code>ORDER BY</code> виконується після <code>SELECT</code>, тому може посилатися на псевдонім із <code>SELECT</code> (а <code>WHERE</code> не може). <code>LIMIT</code> іде останнім: спершу сортуємо весь результат, і лише потім відрізаємо перші рядки. Це шаблон «топ-N». Натисніть <strong>Покроково</strong> і пройдіть усі етапи.</p>
+      <p><code>ORDER BY</code> виконується після <code>SELECT</code>, тому може посилатися на псевдонім із <code>SELECT</code>. <code>LIMIT</code> іде останнім: спершу сортуємо весь результат, і лише потім відрізаємо перші рядки. Це шаблон «топ-N». Натисніть <strong>Покроково</strong> і пройдіть усі етапи.</p>
     </div>
+    <div class="callout">
+      <span class="callout-title">Псевдонім у WHERE: SQLite дозволяє, стандарт ні</span>
+      <p>За стандартом SQL <code>WHERE</code> виконується раніше за <code>SELECT</code> і псевдонімів ще не бачить. SQLite тут поблажливий: <code>WHERE kg &gt; 20</code> у нього спрацює. У PostgreSQL (Модуль 4) той самий запит впаде з помилкою <code>column "kg" does not exist</code>. Тому в <code>WHERE</code> пишіть справжню назву колонки: <code>WHERE weight &gt; 20</code>.</p>
+    </div>
+    <div data-quiz="q-limit"></div>
     <pre class="sql" data-run>-- 2 найважчі пацієнти, що зараз на лікуванні
 SELECT name, weight AS kg
 FROM animals
@@ -445,6 +477,7 @@ WHERE age BETWEEN 3 AND 5;</pre>
     <div class="prose">
       <p>У SQLite немає окремого типу дати: дати зберігаються як текст. Формат <code>'РРРР-ММ-ДД'</code> (ISO 8601) сортується як текст у тому самому порядку, що й календар, тому <code>BETWEEN</code> працює і для дат.</p>
     </div>
+    <div data-quiz="q-between"></div>
     <pre class="sql" data-run>-- візити за квітень
 SELECT id, visit_date, reason, cost
 FROM visits
@@ -463,6 +496,7 @@ WHERE visit_date BETWEEN '2026-04-01' AND '2026-04-30';</pre>
     <pre class="sql" data-run>SELECT last_name, first_name, city
 FROM owners
 WHERE city IN ('Винники', 'Брюховичі', 'Пустомити');</pre>
+    <div data-quiz="q-notin"></div>
     <div class="prose">
       <p><strong>Пастка NOT IN і NULL.</strong> Знайдемо тварин, що не належать до порід «лабрадор» і «британська». Порода записана не в усіх. Порівняння <code>NULL</code> з будь-чим дає «невідомо», тому тварини без породи зникають із результату.</p>
     </div>
@@ -474,6 +508,17 @@ WHERE breed NOT IN ('лабрадор', 'британська');
 FROM animals
 WHERE breed NOT IN ('лабрадор', 'британська')
    OR breed IS NULL;</pre>
+    <div class="prose">
+      <p><strong>IN і пріоритет AND/OR.</strong> Коли умов кілька, <code>AND</code> виконується раніше за <code>OR</code>, так само як множення раніше за додавання. Через це умова нижче означає не те, що здається.</p>
+    </div>
+    <div data-quiz="q-andor"></div>
+    <pre class="sql" data-run>-- задум: коти й собаки, старші за 8 років
+SELECT name, species, age
+FROM animals
+WHERE (species = 'кіт' OR species = 'собака') AND age > 8;</pre>
+    <div class="prose">
+      <p>Дужки виправляють пріоритет. А <code>IN</code> робить те саме коротше й без пастки, бо список значень уже стоїть разом: <code>WHERE species IN ('кіт', 'собака') AND age &gt; 8</code>. Звичка: якщо в умові є і <code>AND</code>, і <code>OR</code>, ставте дужки явно.</p>
+    </div>
     <div data-ex="l10-in"></div>
   </section>
 
@@ -495,6 +540,7 @@ WHERE name LIKE '____';</pre>
     <pre class="sql" data-run>SELECT last_name, email
 FROM owners
 WHERE email LIKE '%@gmail.com';</pre>
+    <div data-quiz="q-like"></div>
     <div class="prose">
       <p>А для кирилиці SQLite без розширення ICU регістр розрізняє. Кличка «Рекс» записана з великої літери:</p>
     </div>
@@ -507,8 +553,27 @@ SELECT name FROM animals WHERE name LIKE 'Рекс';   -- знайдено</pre>
     <div data-ex="l10-like"></div>
   </section>
 
+  <section class="section" data-title="Типові помилки">
+    <div class="section-head"><span class="section-no">10</span><h2>Типові помилки і як їх розпізнати</h2><span class="tag-new">нове</span></div>
+    <div class="prose"><p>Більшість помилок цієї теми не дають повідомлення про помилку: запит виконується, але повертає не те. Тому корисно знати симптоми.</p></div>
+    <div class="tbl-wrap"><table class="res dict">
+      <thead><tr><th>Симптом</th><th>Причина</th><th>Виправлення</th></tr></thead>
+      <tbody>
+        <tr><td><code>syntax error</code> біля <code>WHERE</code></td><td>Частини запиту переставлено: <code>ORDER BY</code> перед <code>WHERE</code></td><td>Порядок запису: <code>SELECT → FROM → WHERE → ORDER BY → LIMIT</code></td></tr>
+        <tr><td>Запит із псевдонімом у <code>WHERE</code> працює в SQLite, але падає в PostgreSQL</td><td>За стандартом <code>WHERE</code> не бачить псевдонімів із <code>SELECT</code></td><td>Справжня назва колонки: <code>WHERE weight &gt; 30</code></td></tr>
+        <tr><td>Завжди 0 рядків з <code>= NULL</code></td><td>Порівняння з NULL дає «невідомо»</td><td><code>IS NULL</code> / <code>IS NOT NULL</code></td></tr>
+        <tr><td>0 рядків з <code>BETWEEN</code></td><td>Межі переплутано: <code>BETWEEN 6 AND 2</code></td><td>Спершу менша межа</td></tr>
+        <tr><td><code>LIKE</code> нічого не знаходить</td><td>Немає <code>%</code> або не той регістр кирилиці</td><td><code>LIKE 'Ри%'</code>, перевірити велику літеру</td></tr>
+        <tr><td>Забагато рядків при кількох умовах</td><td><code>AND</code> зв'язує сильніше за <code>OR</code></td><td>Дужки або <code>IN</code></td></tr>
+        <tr><td>Менше рядків, ніж очікували, з <code>NOT IN</code></td><td>Рядки з NULL відкидаються</td><td>Додати <code>OR колонка IS NULL</code></td></tr>
+        <tr><td>«Топ-3» щоразу різний чи неправильний</td><td>Немає <code>ORDER BY</code> перед <code>LIMIT</code></td><td><code>ORDER BY … DESC LIMIT 3</code></td></tr>
+        <tr><td>Українські слова «не за абеткою»</td><td>SQLite сортує за кодами символів</td><td>Пам'ятати про <code>і ї є ґ</code>; у PostgreSQL — локаль <code>uk_UA</code></td></tr>
+      </tbody></table></div>
+    <div class="prose"><p>Усі ці помилки є в розминці <a href="#practice-12">Практики 12</a>: там їх треба знайти й виправити.</p></div>
+  </section>
+
   <section class="section" data-title="Підсумок">
-    <div class="section-head"><span class="section-no">10</span><h2>Підсумок</h2></div>
+    <div class="section-head"><span class="section-no">11</span><h2>Підсумок</h2></div>
     <div class="prose">
       <ul>
         <li><code>ORDER BY колонка [ASC|DESC]</code> задає порядок. Без нього порядок не гарантований.</li>
@@ -518,9 +583,13 @@ SELECT name FROM animals WHERE name LIKE 'Рекс';   -- знайдено</pre>
         <li><code>ORDER BY</code> виконується після <code>SELECT</code>, <code>LIMIT</code> після <code>ORDER BY</code>. Разом вони дають «топ-N» і сторінки.</li>
         <li><code>DISTINCT</code> прибирає повтори всієї комбінації колонок.</li>
         <li><code>BETWEEN</code> включає обидві межі і працює для ISO-дат. Дата з часом потребує <code>&lt;</code> наступного дня.</li>
-        <li><code>IN</code> замінює ланцюжок <code>OR</code>. <code>NOT IN</code> мовчки відкидає рядки з <code>NULL</code>.</li>
+        <li><code>IN</code> замінює ланцюжок <code>OR</code> і рятує від пастки пріоритету <code>AND</code>/<code>OR</code>. <code>NOT IN</code> мовчки відкидає рядки з <code>NULL</code>.</li>
         <li><code>LIKE</code> ігнорує регістр лише для латиниці.</li>
       </ul>
+      <p><strong>Від слів до SQL.</strong> Ця таблиця допомагає перекласти завдання, сформульоване звичайною мовою, на частини запиту:</p>
+    </div>
+    <div data-dict></div>
+    <div class="prose">
       <p><a href="#practice-12">Перейти до Практики 12: тиждень у клініці «Лапа» →</a></p>
     </div>
   </section>
@@ -935,61 +1004,61 @@ const PEOPLE = {
 
 // Practice 12: one working week in the clinic. Each mission unlocks the next one.
 const MISSIONS = [
-  { id: 'p12-1', scene: r => ({ title: 'Велика вольєра · 1 місце', items: [`${r.values[0][0]} · ${r.values[0][2]} кг`] }), who: 'oksana', title: 'Розподіл стаціонару', tables: ['animals'],
+  { id: 'p12-1', think: ['Яка таблиця і яка умова відбирають лише пацієнтів стаціонару?', 'За якою колонкою сортувати і в якому напрямку, щоб найважчий був першим?'], scene: r => ({ title: 'Велика вольєра · 1 місце', items: [`${r.values[0][0]} · ${r.values[0][2]} кг`] }), who: 'oksana', title: 'Розподіл стаціонару', tables: ['animals'],
     brief: 'У стаціонарі звільнилась велика вольєра. Дайте мені список тварин <em>на лікуванні</em> від найважчої до найлегшої: кличка, вид, вага. Найважчий іде у велику вольєру.',
     start: 'SELECT name, species, weight\nFROM animals\nWHERE status = \'на лікуванні\'\n',
     ref: "SELECT name, species, weight FROM animals WHERE status = 'на лікуванні' ORDER BY weight DESC",
     hint: 'Умова вже є. Додайте сортування за вагою в порядку спадання.',
     impact: r => `У велику вольєру переїжджає <strong>${r.values[0][0]}</strong> (${r.values[0][2]} кг). Решта пацієнтів стаціонару (${r.values.length - 1}) лишаються на своїх місцях.` },
-  { id: 'p12-2', who: 'lesia', title: 'Обхід за видами', tables: ['animals'],
+  { id: 'p12-2', think: ['Скільки колонок у сортуванні і яка з них головна?', 'Яка колонка вирішує нічию між тваринами одного виду?'], who: 'lesia', title: 'Обхід за видами', tables: ['animals'],
     brief: 'Робимо ранковий обхід. Мені потрібні всі тварини, згруповані за видом (за абеткою), а всередині виду від найстаршої до наймолодшої. Колонки: кличка, вид, вік.',
     start: 'SELECT name, species, age\nFROM animals\n',
     ref: 'SELECT name, species, age FROM animals ORDER BY species ASC, age DESC',
     hint: 'Дві колонки в <code>ORDER BY</code> через кому, кожна зі своїм напрямком.',
     impact: r => `Обхід починається з виду «${r.values[0][1]}». Подивіться уважно: кролики стоять перед котами, хоча в абетці «кі» йде раніше за «кр». Чому так, пояснює розділ 3 лекції.` },
-  { id: 'p12-3', scene: r => ({ title: 'Квартальний звіт', items: r.values.map(v => `№${v[0]} · ${v[2]} · ${v[3].toLocaleString('uk-UA')} грн`) }), who: 'nina', title: 'П\'ять найдорожчих візитів', tables: ['visits'],
+  { id: 'p12-3', think: ['Що має статися раніше: сортування чи обрізання до 5?', 'Що повернув би запит, якби прибрати ORDER BY?'], scene: r => ({ title: 'Квартальний звіт', items: r.values.map(v => `№${v[0]} · ${v[2]} · ${v[3].toLocaleString('uk-UA')} грн`) }), who: 'nina', title: 'П\'ять найдорожчих візитів', tables: ['visits'],
     brief: 'Готую квартальний звіт. Потрібні 5 найдорожчих візитів: номер, дата, причина, вартість. Від найдорожчого.',
     start: 'SELECT id, visit_date, reason, cost\nFROM visits\n',
     ref: 'SELECT id, visit_date, reason, cost FROM visits ORDER BY cost DESC LIMIT 5',
     require: [['LIMIT', /\blimit\b/i]],
     hint: 'Шаблон «топ-N»: <code>ORDER BY ... DESC LIMIT 5</code>.',
     impact: r => `Ніна внесла в звіт ${r.values.length} візитів на суму <strong>${r.values.reduce((s, v) => s + v[3], 0).toLocaleString('uk-UA')} грн</strong>.` },
-  { id: 'p12-4', scene: r => ({ title: 'Буклет', items: r.values.map((v, i) => `с. ${i + 1} · ${v[0]}`) }), who: 'max', title: 'Буклет «Кого ми лікуємо»', tables: ['animals'],
+  { id: 'p12-4', think: ['Скільки рядків зараз повертає запит і чому так багато?', 'Повтори чого саме треба прибрати: рядків чи значень однієї колонки?'], scene: r => ({ title: 'Буклет', items: r.values.map((v, i) => `с. ${i + 1} · ${v[0]}`) }), who: 'max', title: 'Буклет «Кого ми лікуємо»', tables: ['animals'],
     brief: 'Друкуємо буклет для клієнтів. Кожен вид тварин отримає свою сторінку. Дайте список видів без повторів.',
     start: 'SELECT species\nFROM animals;',
     ref: 'SELECT DISTINCT species FROM animals',
     require: [['DISTINCT', /\bdistinct\b/i]],
     hint: 'Зараз у результаті 24 рядки з повторами. Одне ключове слово це виправить.',
     impact: r => `Буклет матиме <strong>${r.values.length} сторінок</strong>: ${names(r)}.` },
-  { id: 'p12-5', who: 'lesia', title: 'Квітнева вакцинація', tables: ['visits'],
+  { id: 'p12-5', think: ['Дві умови: за причиною і за датою. Як їх поєднати?', 'Чи потрапить візит 30 квітня, і чому?'], who: 'lesia', title: 'Квітнева вакцинація', tables: ['visits'],
     brief: 'Перевіряю, чи всі квітневі щеплення внесені в журнал. Потрібні візити з причиною «вакцинація» за квітень 2026: номер візиту, id тварини, дата.',
     start: 'SELECT id, animal_id, visit_date\nFROM visits\nWHERE reason = \'вакцинація\'\n',
     ref: "SELECT id, animal_id, visit_date FROM visits WHERE reason = 'вакцинація' AND visit_date BETWEEN '2026-04-01' AND '2026-04-30'",
     require: [['BETWEEN', /\bbetween\b/i]],
     hint: "Дати зберігаються як текст у форматі <code>'РРРР-ММ-ДД'</code>, тому <code>BETWEEN '2026-04-01' AND '2026-04-30'</code> працює.",
     impact: r => `Журнал звірено: ${r.values.length} щеплення. Візит <strong>30 квітня</strong> теж у списку, бо <code>BETWEEN</code> включає обидві межі.` },
-  { id: 'p12-6', scene: r => ({ title: 'Маршрут на четвер', items: r.values.map(v => `${v[2]} · ${v[0]} ${v[1]} · ${v[3]}`) }), who: 'oksana', title: 'Виїзний день', tables: ['owners'],
+  { id: 'p12-6', think: ['Скільки разів довелося б писати OR без IN?', 'Чи важливий тут порядок рядків?'], scene: r => ({ title: 'Маршрут на четвер', items: r.values.map(v => `${v[2]} · ${v[0]} ${v[1]} · ${v[3]}`) }), who: 'oksana', title: 'Виїзний день', tables: ['owners'],
     brief: 'У четвер лікар їде на виклики в передмістя: Винники, Брюховичі, Пустомити. Мені треба обдзвонити власників звідти: прізвище, ім\'я, місто, телефон.',
     start: 'SELECT last_name, first_name, city, phone\nFROM owners\n',
     ref: "SELECT last_name, first_name, city, phone FROM owners WHERE city IN ('Винники','Брюховичі','Пустомити')",
     require: [['IN', /\bin\s*\(/i]],
     hint: 'Три міста зі списку: <code>IN (...)</code> замість трьох <code>OR</code>.',
     impact: r => `Оксана обдзвонила ${r.values.length} власників. Маршрут на четвер: ${[...new Set(r.values.map(v => v[2]))].join(' → ')}.` },
-  { id: 'p12-7', scene: r => ({ title: 'Розсилка: отримувачі', items: r.values.map(v => v[1]) }), who: 'max', title: 'Розсилка на Gmail', tables: ['owners'],
+  { id: 'p12-7', think: ['Де може стояти «@gmail.com»: на початку, в кінці чи будь-де?', 'Чи знайдуться адреси, записані ВЕЛИКИМИ літерами?'], scene: r => ({ title: 'Розсилка: отримувачі', items: r.values.map(v => v[1]) }), who: 'max', title: 'Розсилка на Gmail', tables: ['owners'],
     brief: 'Запускаємо email-розсилку про весняну знижку на чипування, спершу для Gmail. Потрібні прізвище та email усіх, у кого пошта на <code>@gmail.com</code>.',
     start: 'SELECT last_name, email\nFROM owners\n',
     ref: "SELECT last_name, email FROM owners WHERE email LIKE '%@gmail.com'",
     require: [['LIKE', /\blike\b/i]],
     hint: "<code>LIKE '%@gmail.com'</code>. Подумайте, чи знайдуться адреси, записані великими літерами.",
     impact: r => `Розсилку отримають <strong>${r.values.length} власників</strong>. Серед них ${r.values.filter(v => /[A-Z]/.test(v[1])).map(v => `<code>${v[1]}</code>`).join(', ')}: для латиниці <code>LIKE</code> не зважає на регістр.` },
-  { id: 'p12-8', who: 'oksana', title: 'Хто ж це був?', tables: ['animals'],
+  { id: 'p12-8', think: ['Чим «ри» всередині слова відрізняється від «Ри» на початку для SQLite?', 'Скільки умов потрібно і як їх з\'єднати?'], who: 'oksana', title: 'Хто ж це був?', tables: ['animals'],
     brief: 'Телефонує жінка: забула кличку свого улюбленця, пам\'ятає лише, що в ній є склад «ри», можливо на самому початку. Знайдіть усі кандидатури: кличка, вид.',
     start: "SELECT name, species\nFROM animals\nWHERE name LIKE '%ри%';",
     ref: "SELECT name, species FROM animals WHERE name LIKE '%ри%' OR name LIKE 'Ри%'",
     require: [['LIKE', /\blike\b/i]],
     hint: "Стартовий запит пропускає клички, що починаються на велику «Ри». Для кирилиці SQLite розрізняє регістр, тому потрібна ще одна умова: <code>OR name LIKE 'Ри%'</code>.",
     impact: r => `Кандидатур знайдено: ${r.values.length} (${names(r)}). Без другої умови Оксана не побачила б у списку: ${r.values.filter(v => v[0].startsWith('Ри')).map(v => v[0]).join(', ')}.` },
-  { id: 'p12-9', scene: r => ({ title: 'Звіт власнику', items: r.values.map(v => `${v[1]} · ${v[2]} · ${v[3].toLocaleString('uk-UA')} грн`) }), who: 'nina', title: 'Звіт для власника клініки', tables: ['visits'],
+  { id: 'p12-9', think: ['Розкладіть доручення на частини: які причини, який період, який порядок, скільки рядків?', 'У якому порядку ці частини стоять у запиті?'], scene: r => ({ title: 'Звіт власнику', items: r.values.map(v => `${v[1]} · ${v[2]} · ${v[3].toLocaleString('uk-UA')} грн`) }), who: 'nina', title: 'Звіт для власника клініки', tables: ['visits'],
     brief: 'Власник клініки хоче бачити 3 найдорожчі хірургічні та стоматологічні візити за березень–квітень: причини «стерилізація» і «лікування зубів». Колонки: номер, дата, причина, вартість. Від найдорожчого.',
     start: 'SELECT id, visit_date, reason, cost\nFROM visits\n',
     ref: "SELECT id, visit_date, reason, cost FROM visits WHERE reason IN ('стерилізація','лікування зубів') AND visit_date BETWEEN '2026-03-01' AND '2026-04-30' ORDER BY cost DESC LIMIT 3",
@@ -999,6 +1068,107 @@ const MISSIONS = [
 ];
 
 for (const [key, ex] of Object.entries(LECTURE_EXERCISES)) ex.tasks.forEach((t, i) => { t.id = `${key}-${i + 1}`; });
+
+// Optional missions after the main week: harder, each hides one logical trap.
+MISSIONS.push(
+  { id: 'p12-10', bonus: true, who: 'oksana', title: 'Друга сторінка журналу', tables: ['visits'],
+    think: ['Скільки записів треба пропустити, щоб опинитися на другій сторінці?', 'Що станеться зі сторінками, якщо не задати порядок?'],
+    brief: 'У новій програмі журнал візитів показується сторінками по 8 записів, найновіші першими. Перевірте, що буде на <em>другій</em> сторінці: номер, дата, причина.',
+    start: 'SELECT id, visit_date, reason\nFROM visits\n',
+    ref: 'SELECT id, visit_date, reason FROM visits ORDER BY visit_date DESC LIMIT 8 OFFSET 8',
+    hint: 'Друга сторінка = пропустити першу: <code>LIMIT 8 OFFSET 8</code>, і обов\'язково <code>ORDER BY visit_date DESC</code>.',
+    impact: r => `Друга сторінка охоплює візити з ${r.values.at(-1)[1]} по ${r.values[0][1]}. Програмісти звірили: збігається.` },
+  { id: 'p12-11', bonus: true, who: 'lesia', title: 'Не лабрадори й не британці', tables: ['animals'],
+    think: ['Що SQLite робить з рядком, у якого breed = NULL, при перевірці NOT IN?', 'Безпорідна тварина — це «не лабрадор»? Як це сказати мовою SQL?'],
+    brief: 'Для статті про породи потрібні всі тварини, що НЕ є лабрадорами чи британцями. Безпорідних (порода не вказана) теж включаємо. Колонки: кличка, порода.',
+    start: "SELECT name, breed\nFROM animals\nWHERE breed NOT IN ('лабрадор', 'британська');",
+    ref: "SELECT name, breed FROM animals WHERE breed NOT IN ('лабрадор','британська') OR breed IS NULL",
+    hint: 'Стартовий запит губить тварин з <code>NULL</code> у breed. Допишіть <code>OR breed IS NULL</code>.',
+    impact: r => `У статті ${r.values.length} тварин, з них безпорідних: ${r.values.filter(v => v[1] === null).length}. Без другої умови вони б зникли.` },
+  { id: 'p12-12', bonus: true, who: 'max', title: 'Хто не на Gmail', tables: ['owners'],
+    think: ['Як записати «не схоже на шаблон»?', 'Що відбувається з власниками, у яких email не вказано взагалі?'],
+    brief: 'Другу хвилю розсилки шлемо тим, у кого є email, але не на Gmail. Прізвище й email, за прізвищем.',
+    start: 'SELECT last_name, email\nFROM owners\n',
+    ref: "SELECT last_name, email FROM owners WHERE email IS NOT NULL AND email NOT LIKE '%@gmail.com' ORDER BY last_name",
+    require: [['NOT LIKE', /\bnot\s+like\b/i]],
+    hint: "<code>email NOT LIKE '%@gmail.com'</code>. Подумайте, чи потрібна ще перевірка на <code>NULL</code>, і подивіться, хто стоїть першим після сортування.",
+    impact: r => `Друга хвиля: ${r.values.length} адрес. Першим у списку стоїть ${r.values[0][0]}: велика «І» має менший код, ніж «А» (розділ 3 лекції).` },
+);
+
+// Practice warm-up: each query is broken in a typical way; students fix it.
+const WARMUP = {
+  title: 'Розминка. Знайдіть і виправте помилку',
+  tables: ['animals', 'owners'],
+  start: '',
+  tasks: [
+    { id: 'p12-w1', text: 'Потрібні тварини, важчі за 20 кг, від найлегшої (кличка, вага). Запит падає з помилкою.',
+      start: 'SELECT name, weight\nFROM animals\nORDER BY weight\nWHERE weight > 20;',
+      ref: 'SELECT name, weight FROM animals WHERE weight > 20 ORDER BY weight',
+      hint: 'Частини запиту стоять у фіксованому порядку: <code>SELECT … FROM … WHERE … ORDER BY … LIMIT</code>. Умова має йти перед сортуванням.' },
+    { id: 'p12-w2', text: 'Має показати власників без email, але завжди повертає 0 рядків.',
+      start: 'SELECT last_name, email\nFROM owners\nWHERE email = NULL;',
+      ref: 'SELECT last_name, email FROM owners WHERE email IS NULL',
+      hint: 'Порівняння з <code>NULL</code> через <code>=</code> дає «невідомо», а не «так». Потрібно <code>IS NULL</code>.' },
+    { id: 'p12-w3', text: 'Має показати тварин віком від 2 до 6 років, але повертає 0 рядків.',
+      start: 'SELECT name, age\nFROM animals\nWHERE age BETWEEN 6 AND 2;',
+      ref: 'SELECT name, age FROM animals WHERE age BETWEEN 2 AND 6',
+      hint: '<code>BETWEEN a AND b</code> означає <code>&gt;= a AND &lt;= b</code>. Чи буває число, одночасно не менше 6 і не більше 2?' },
+    { id: 'p12-w4', text: 'Має знайти клички, що починаються на «Ри», але нічого не знаходить.',
+      start: "SELECT name\nFROM animals\nWHERE name LIKE 'Ри';",
+      ref: "SELECT name FROM animals WHERE name LIKE 'Ри%'",
+      hint: "Без <code>%</code> шаблон <code>'Ри'</code> означає «рівно Ри». Додайте <code>%</code> там, де може бути продовження." },
+    { id: 'p12-w5', text: 'Потрібні коти й собаки, старші за 8 років. Запит повертає забагато рядків.',
+      start: "SELECT name, species, age\nFROM animals\nWHERE species = 'кіт' OR species = 'собака' AND age > 8;",
+      ref: "SELECT name, species, age FROM animals WHERE species IN ('кіт','собака') AND age > 8",
+      hint: '<code>AND</code> зв\'язує сильніше за <code>OR</code>: умова читається як «кіт АБО (собака І старший за 8)». Візьміть <code>OR</code> у дужки або замініть на <code>IN</code>.' },
+    { id: 'p12-w6', text: 'Потрібні 3 найважчі тварини (кличка, вага), а виходять три випадкові.',
+      start: 'SELECT name, weight\nFROM animals\nLIMIT 3;',
+      ref: 'SELECT name, weight FROM animals ORDER BY weight DESC LIMIT 3',
+      hint: 'Без <code>ORDER BY</code> «перші три» означає «будь-які три». Спершу відсортуйте за вагою за спаданням.' },
+  ],
+};
+
+// Predict-then-run questions in the lecture.
+const QUIZZES = {
+  'q-alpha': { q: 'Яка кличка опиниться першою?', sql: 'SELECT name FROM animals ORDER BY name LIMIT 1;',
+    options: ['Арчі', 'Барсик', 'Ірис', 'Бублик'], correct: 2,
+    explain: 'Код великої «І» (U+0406) менший за код «А» (U+0410), тому Ірис стоїть раніше за Арчі. SQLite порівнює коди символів, а не абетку.' },
+  'q-null': { q: 'Кролик Сніжок не зважений (weight = NULL). Де він буде в результаті?', sql: 'SELECT name, weight FROM animals ORDER BY weight;',
+    options: ['Першим', 'Останнім', 'Його не буде в результаті'], correct: 0,
+    explain: 'У SQLite NULL менший за будь-яке значення, тому за ASC він іде першим. ORDER BY рядки не відкидає, тож Сніжок у результаті є.' },
+  'q-limit': { q: 'Що поверне цей запит?', sql: 'SELECT name, age FROM animals LIMIT 2;',
+    options: ['Двох найстаріших тварин', 'Двох перших за абеткою', 'Будь-які два рядки: порядок не задано'], correct: 2,
+    explain: 'Без ORDER BY порядок не гарантований. Зараз це перші два рядки за порядком вставки, але покладатися на це не можна.' },
+  'q-between': { q: 'Скільки візитів за квітень знайде запит? (У журналі є візити 1 і 30 квітня.)', sql: "SELECT id, visit_date FROM visits WHERE visit_date BETWEEN '2026-04-01' AND '2026-04-30';",
+    options: ['8', '9', '10'], correct: 2,
+    explain: 'BETWEEN включає обидві межі, тож візити 1 і 30 квітня теж у результаті. Усього 10.' },
+  'q-andor': { q: 'Скільки рядків поверне запит? (У базі 9 котів; собак, старших за 8 років, дві.)', sql: "SELECT name, species, age FROM animals WHERE species = 'кіт' OR species = 'собака' AND age > 8;",
+    options: ['3', '11', '20'], correct: 1,
+    explain: 'AND виконується раніше за OR: «всі коти» АБО «собаки старші за 8». 9 + 2 = 11. Щоб отримати котів і собак старших за 8, потрібні дужки або IN.' },
+  'q-notin': { q: 'Скільки рядків поверне запит? (Тварин 24: 4 з них лабрадори чи британці, 9 без породи.)', sql: "SELECT name, breed FROM animals WHERE breed NOT IN ('лабрадор', 'британська');",
+    options: ['20', '11', '24'], correct: 1,
+    explain: 'Для тварин без породи перевірка NOT IN дає «невідомо», і вони відкидаються. 24 − 4 − 9 = 11.' },
+  'q-like': { q: 'Чи знайде запит Рекса (кличка записана як «Рекс»)?', sql: "SELECT name FROM animals WHERE name LIKE 'рекс';",
+    options: ['Так, LIKE не зважає на регістр', 'Ні, для кирилиці регістр важить'], correct: 1,
+    explain: 'LIKE у SQLite ігнорує регістр лише для латиниці. Для кирилиці «р» і «Р» різні символи.' },
+};
+
+// Plain-language cues → SQL clause. Shown in the lecture summary and before the practice.
+const DICTIONARY_HTML = `<div class="tbl-wrap"><table class="res dict">
+  <thead><tr><th>У дорученні сказано</th><th>Пишемо</th><th>Приклад</th></tr></thead>
+  <tbody>
+    <tr><td>«від найбільшого», «найдорожчі першими», «від найновіших»</td><td><code>ORDER BY … DESC</code></td><td>найважчі пацієнти</td></tr>
+    <tr><td>«за абеткою», «від найменшого», «від найстаріших дат»</td><td><code>ORDER BY … ASC</code></td><td>список за прізвищем</td></tr>
+    <tr><td>«спершу за …, а всередині за …»</td><td><code>ORDER BY a, b</code></td><td>за видом, потім за віком</td></tr>
+    <tr><td>«перші N», «топ-N», «найбільші N»</td><td><code>ORDER BY … LIMIT N</code></td><td>5 найдорожчих візитів</td></tr>
+    <tr><td>«сторінка K по N записів»</td><td><code>LIMIT N OFFSET (K−1)·N</code></td><td>друга сторінка журналу</td></tr>
+    <tr><td>«без повторів», «які бувають», «унікальні»</td><td><code>DISTINCT</code></td><td>які види лікуємо</td></tr>
+    <tr><td>«від … до … включно», «за період»</td><td><code>BETWEEN a AND b</code></td><td>візити за квітень</td></tr>
+    <tr><td>«один із», «з таких міст», «ці причини»</td><td><code>IN (…)</code></td><td>Винники, Брюховичі, Пустомити</td></tr>
+    <tr><td>«крім», «не з цього списку»</td><td><code>NOT IN (…)</code> + подумати про <code>NULL</code></td><td>не лабрадори</td></tr>
+    <tr><td>«починається з», «закінчується на», «містить»</td><td><code>LIKE 'x%'</code>, <code>'%x'</code>, <code>'%x%'</code></td><td>прізвища на -енко</td></tr>
+    <tr><td>«не вказано», «немає даних»</td><td><code>IS NULL</code></td><td>власники без email</td></tr>
+  </tbody></table></div>`;
 </script>
 <script>'use strict';
 
@@ -1054,8 +1224,15 @@ function freshDb() {
 function runSql(sql) {
   const db = freshDb();
   try {
-    const results = db.exec(sql);
-    return { ok: true, result: results.at(-1) ?? { columns: [], values: [] } };
+    // iterateStatements keeps column names even when a SELECT returns zero rows.
+    let last = { columns: [], values: [] };
+    for (const stmt of db.iterateStatements(sql)) {
+      const columns = stmt.getColumnNames();
+      const values = [];
+      while (stmt.step()) values.push(stmt.get());
+      if (columns.length) last = { columns, values };
+    }
+    return { ok: true, result: last };
   } catch (e) {
     return { ok: false, error: e.message };
   } finally {
@@ -1190,7 +1367,7 @@ function buildStages(sql) {
       stages.push({ key: 'WHERE', caption: `Перевіряємо умову <code>${esc(p.where)}</code> для кожного рядка: ${kept.length} з ${fromRows.length} проходять, решта відкидається.`,
         columns: tableCols, hl: referencedColumns(p.where, tableCols),
         rows: fromRows.map(r => ({ ...r, cls: pass.has(r.id) ? '' : 'out' })), count: kept.length,
-        note: `Відсіяно ${fromRows.length - kept.length}. WHERE ще не бачить псевдонімів із SELECT.` });
+        note: `Відсіяно ${fromRows.length - kept.length}. Колонки з SELECT тут ще не обрано.` });
     }
 
     const proj = db.exec(`SELECT ${selectList}, rowid AS __r FROM ${p.from}${where}`)[0];
@@ -1425,9 +1602,12 @@ function mountBench(container, cfg) {
   }
 
   const current = () => cfg.tasks.find(t => !progress[t.id]);
+  let loadedTask = null;
   const drawTasks = () => {
     if (!cfg.tasks.length) return;
     const cur = current();
+    // Debugging tasks bring their own broken query into the editor.
+    if (cur?.start && cur !== loadedTask) { editor.value = cur.start; loadedTask = cur; }
     $('.tasks', el).innerHTML = cfg.tasks.map(t =>
       `<li class="${progress[t.id] ? 'solved' : t === cur ? 'current' : ''}"><span class="tick">✓</span><span class="task-text">${t.text}</span></li>`).join('');
     const done = cfg.tasks.filter(t => progress[t.id]).length;
@@ -1455,7 +1635,10 @@ function mountBench(container, cfg) {
       return;
     }
     const verdict = checkTask(cur, sql, res);
-    if (verdict.why) fb.innerHTML = `<div class="feedback no"><strong>Ще не зовсім.</strong><span>${verdict.why}</span></div>`;
+    if (verdict.why) {
+      fb.innerHTML = `<div class="feedback no"><strong>Ще не зовсім.</strong><span>${verdict.why}</span>
+        <button class="btn expect-btn" data-act="expected">Показати очікуваний результат</button></div>`;
+    }
   }
 
   el.addEventListener('click', e => {
@@ -1464,7 +1647,11 @@ function mountBench(container, cfg) {
     const cur = current() ?? cfg.tasks.at(-1);
     if (act === 'run') run();
     if (act === 'step') { $('.out', el).innerHTML = ''; $('.fb', el).innerHTML = ''; mountStepper($('.extra', el), editor.value); }
-    if (act === 'reset') { editor.value = cfg.start; $('.out', el).innerHTML = ''; $('.fb', el).innerHTML = ''; $('.extra', el).innerHTML = ''; }
+    if (act === 'expected' && cur) {
+      $('.extra', el).innerHTML = `<div class="expected"><span class="scene-title">Очікуваний результат</span>${resultHtml(runSql(cur.ref))}
+        <p class="res-meta">Порівняйте з вашим: кількість рядків, колонки, порядок.</p></div>`;
+    }
+    if (act === 'reset') { editor.value = cur?.start ?? cfg.start; $('.out', el).innerHTML = ''; $('.fb', el).innerHTML = ''; $('.extra', el).innerHTML = ''; }
     if (act === 'hint' && cur) {
       $('.extra', el).innerHTML = `<div class="hint">${cur.hint}</div>`;
       $('[data-act="solution"]', el).hidden = false;
@@ -1488,26 +1675,60 @@ function formatSql(sql) {
     .replace(/\u0000/g, 'AND') + ';';
 }
 
+// ---------- predict-then-run questions ----------
+function mountQuiz(slot, quiz) {
+  const el = h(`<div class="quiz">
+    <span class="quiz-label">Передбачте результат</span>
+    <p class="quiz-q">${quiz.q}</p>
+    <pre class="quiz-sql">${highlight(quiz.sql)}</pre>
+    <div class="quiz-options">${quiz.options.map((o, i) => `<button class="btn quiz-opt" data-i="${i}">${o}</button>`).join('')}</div>
+    <div class="quiz-after" hidden>
+      <p class="quiz-verdict"></p><p>${quiz.explain}</p>
+      <button class="btn btn-primary" data-act="check">Перевірити запуском</button>
+      <div class="quiz-out"></div>
+    </div></div>`);
+  slot.replaceWith(el);
+  el.addEventListener('click', e => {
+    const opt = e.target.closest('.quiz-opt');
+    if (opt && !el.classList.contains('answered')) {
+      const right = +opt.dataset.i === quiz.correct;
+      el.classList.add('answered');
+      el.querySelectorAll('.quiz-opt').forEach((b, i) => {
+        b.disabled = true;
+        if (i === quiz.correct) b.classList.add('right');
+      });
+      if (!right) opt.classList.add('wrong');
+      $('.quiz-verdict', el).innerHTML = right ? '<span class="stamp">Влучно</span>' : '<strong>Не зовсім.</strong>';
+      $('.quiz-after', el).hidden = false;
+    }
+    if (e.target.closest('[data-act="check"]')) $('.quiz-out', el).innerHTML = resultHtml(runSql(quiz.sql));
+  });
+}
+
 // ---------- runnable examples in lecture text ----------
+// Lecture examples are editable so students can experiment; "Повернути приклад" restores the original.
 function enhanceRunnable(pre) {
-  const sql = pre.textContent;
-  const box = h(`<div class="runnable"><pre></pre>
+  const original = pre.textContent;
+  const box = h(`<div class="runnable">
+    <button class="btn reset-btn" data-act="restore" hidden title="Повернути початковий текст прикладу">Повернути приклад</button>
+    <div class="ed-slot"></div>
     <div class="run-bar">
-      <button class="btn btn-primary" data-act="run">Виконати</button>
+      <button class="btn btn-primary" data-act="run">Виконати <span class="kbd">Ctrl+Enter</span></button>
       <button class="btn btn-ghost" data-act="step">Покроково</button>
       <button class="btn btn-ghost" data-act="sandbox">Відкрити в пісочниці</button>
     </div><div class="run-out"></div></div>`);
-  $('pre', box).innerHTML = highlight(sql);
   pre.replaceWith(box);
   const out = $('.run-out', box);
+  const restore = $('[data-act="restore"]', box);
+  const run = () => { out.innerHTML = splitStatements(editor.value).map(s => resultHtml(runSql(s))).join(''); };
+  const editor = makeEditor(original.replace(/\n$/, ''), run, () => { restore.hidden = editor.value === original.replace(/\n$/, ''); });
+  $('.ed-slot', box).replaceWith(editor.el);
   box.addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'run') {
-      const statements = splitStatements(sql);
-      out.innerHTML = statements.map(s => resultHtml(runSql(s))).join('');
-    }
-    if (act === 'step') mountStepper(out, splitStatements(sql)[0]);
-    if (act === 'sandbox') { sandboxSql = sql; location.hash = 'sandbox'; }
+    if (act === 'run') run();
+    if (act === 'step') mountStepper(out, splitStatements(editor.value)[0] ?? '');
+    if (act === 'sandbox') { sandboxSql = editor.value; location.hash = 'sandbox'; }
+    if (act === 'restore') { editor.value = original.replace(/\n$/, ''); restore.hidden = true; out.innerHTML = ''; editor.focus(); }
   });
 }
 function splitStatements(sql) {
@@ -1527,7 +1748,7 @@ const ROUTES = {
 function lessonProgress(route) {
   const ids = route === 'lecture-10'
     ? Object.values(LECTURE_EXERCISES).flatMap(ex => ex.tasks.map(t => t.id))
-    : route === 'practice-12' ? MISSIONS.map(m => m.id) : [];
+    : route === 'practice-12' ? [...WARMUP.tasks.map(t => t.id), ...MISSIONS.map(m => m.id)] : [];
   return { done: ids.filter(id => progress[id]).length, total: ids.length };
 }
 
@@ -1562,7 +1783,7 @@ function renderHome(main) {
         <span class="card-meta">ORDER BY, DISTINCT, BETWEEN, IN, LIKE · ${lp.done}/${lp.total} вправ</span>
         <div class="progress-bar"><span style="width:${(lp.done / lp.total) * 100}%"></span></div></a>
       <a class="card" href="#practice-12"><span class="eyebrow">Практика 12</span><span class="card-title">Тиждень у «Лапі»</span>
-        <span class="card-meta">9 доручень від персоналу клініки · ${pp.done}/${pp.total} виконано</span>
+        <span class="card-meta">Розминка, 9 доручень персоналу і 3 додаткові · ${pp.done}/${pp.total} виконано</span>
         <div class="progress-bar"><span style="width:${(pp.done / pp.total) * 100}%"></span></div></a>
       <a class="card" href="#sandbox"><span class="eyebrow">Вільний режим</span><span class="card-title">Пісочниця</span>
         <span class="card-meta">Будь-які запити до бази «Лапа», з покроковим переглядом</span></a>
@@ -1592,6 +1813,8 @@ function renderLecture(main) {
     toc.append(b);
   });
   page.querySelectorAll('pre.sql[data-run]').forEach(enhanceRunnable);
+  page.querySelectorAll('[data-dict]').forEach(slot => { slot.outerHTML = DICTIONARY_HTML; });
+  page.querySelectorAll('[data-quiz]').forEach(slot => mountQuiz(slot, QUIZZES[slot.dataset.quiz]));
   page.querySelectorAll('[data-ex]').forEach(slot => {
     const ex = LECTURE_EXERCISES[slot.dataset.ex];
     mountBench(slot, ex);
@@ -1603,9 +1826,16 @@ function renderPractice(main) {
     <header class="hero">
       <span class="eyebrow">Модуль 2 · Практика 12</span>
       <h1>Тиждень у «Лапі»</h1>
-      <p class="lead">Дев'ять доручень від персоналу клініки. Кожен правильний запит щось змінює в житті «Лапи» і відкриває наступне доручення.</p>
+      <p class="lead">Спершу розминка: шість зламаних запитів. Далі тиждень доручень від персоналу клініки: кожен правильний запит щось змінює в житті «Лапи» і відкриває наступне доручення.</p>
       <div class="progress-bar"><span></span></div>
     </header>
+    <section class="section">
+      <h2>Як перекласти доручення на SQL</h2>
+      <p class="lead">Доручення пишуть звичайною мовою. Шукайте в ньому слова-підказки: кожне відповідає частині запиту.</p>
+      ${DICTIONARY_HTML}
+    </section>
+    <div class="warmup"></div>
+    <section class="section"><h2>Тиждень у «Лапі»</h2></section>
     <div class="missions"></div>
     <section class="section"><h2>Контрольні питання</h2>
       <ol class="questions">
@@ -1621,12 +1851,16 @@ function renderPractice(main) {
     </section>
   </div>`);
   main.replaceChildren(page);
+  mountBench($('.warmup', page), { ...WARMUP, onSolved: () => updateProgress() });
+  const updateProgress = () => {
+    const ids = lessonProgress('practice-12');
+    $('.hero .progress-bar span', page).style.width = `${(ids.done / ids.total) * 100}%`;
+  };
   let open = null;
 
   const draw = () => {
     const firstOpen = MISSIONS.findIndex(m => !progress[m.id]);
-    const done = MISSIONS.filter(m => progress[m.id]).length;
-    $('.hero .progress-bar span', page).style.width = `${(done / MISSIONS.length) * 100}%`;
+    updateProgress();
     if (open === null) open = firstOpen === -1 ? MISSIONS.length - 1 : firstOpen;
     const list = $('.missions', page);
     list.replaceChildren(...MISSIONS.map((m, i) => {
@@ -1636,12 +1870,13 @@ function renderPractice(main) {
       const card = h(`<div class="mission ${state}">
         <button class="mission-head" ${state === 'locked' ? 'disabled' : ''} aria-expanded="${open === i}">
           <span class="avatar" aria-hidden="true">${person.initials}</span>
-          <span><span class="mission-title">${i + 1}. ${m.title}</span><br><span class="mission-who">${person.name}, ${person.role}</span></span>
+          <span><span class="mission-title">${m.bonus ? '★ ' : `${i + 1}. `}${m.title}</span><br><span class="mission-who">${person.name}, ${person.role}${m.bonus ? ' · додаткове' : ''}</span></span>
           <span class="mission-state">${label}</span>
         </button></div>`);
       $('.mission-head', card).addEventListener('click', () => { open = open === i ? -1 : i; draw(); });
       if (open === i && state !== 'locked') {
-        const body = h(`<div class="mission-body"><p class="brief">«${m.brief}»</p><div class="slot"></div><div class="next"></div></div>`);
+        const think = m.think ? `<details class="think"><summary>Спершу подумайте</summary><ul>${m.think.map(q => `<li>${q}</li>`).join('')}</ul></details>` : '';
+        const body = h(`<div class="mission-body"><p class="brief">«${m.brief}»</p>${think}<div class="slot"></div><div class="next"></div></div>`);
         card.append(body);
         const solved = state === 'solved';
         const bench = mountBench($('.slot', body), {
@@ -1662,11 +1897,11 @@ function renderPractice(main) {
     card.classList.remove('current');
     card.classList.add('solved');
     $('.mission-state', card).textContent = 'виконано';
-    const done = MISSIONS.filter(m => progress[m.id]).length;
-    $('.hero .progress-bar span', page).style.width = `${(done / MISSIONS.length) * 100}%`;
+    updateProgress();
     const nextSlot = $('.next', card);
-    if (i + 1 >= MISSIONS.length) { nextSlot.innerHTML = '<p class="res-meta">Усі доручення тижня виконано.</p>'; return; }
-    nextSlot.innerHTML = '<button class="btn btn-primary">Наступне доручення →</button>';
+    if (i + 1 >= MISSIONS.length) { nextSlot.innerHTML = '<p class="res-meta">Усі доручення, зокрема додаткові, виконано.</p>'; return; }
+    const nextLabel = MISSIONS[i + 1].bonus && !MISSIONS[i].bonus ? 'Тиждень закрито. До додаткових доручень' : 'Наступне доручення';
+    nextSlot.innerHTML = `<button class="btn btn-primary">${nextLabel} →</button>`;
     $('button', nextSlot).addEventListener('click', () => { open = i + 1; draw(); $('.missions', page).children[i + 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   }
   draw();
