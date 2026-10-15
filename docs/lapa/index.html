@@ -603,6 +603,287 @@ SELECT name FROM animals WHERE name LIKE 'Рекс';   -- знайдено</pre>
 </article>
 </template>
 
+<template id="tpl-lecture-11">
+<article class="page">
+  <header class="hero">
+    <span class="eyebrow">Модуль 2 · Лекція 11</span>
+    <h1>Запити форматування таблиць</h1>
+    <p class="lead">printf(), функції дати, склеювання рядків і coalesce(). Як зробити результат зрозумілим людям, не змінюючи того, що зберігається в таблиці.</p>
+    <div class="toc" data-toc></div>
+  </header>
+
+  <section class="prose">
+    <p>Кінець місяця в «Лапі». Бухгалтерка Ніна відкриває результат запиту і бачить <code>2400.0</code>, <code>2026-03-15</code> і <code>NULL</code> там, де мав би бути email. Для бази це нормальні значення, але в звіт для власника, у SMS клієнту чи на етикетку їх так не поставиш. Потрібно <code>2400.00 грн</code>, <code>15.03.2026</code> і «немає email».</p>
+    <p>Усе форматування в цій лекції відбувається <strong>на виході</strong>: функції в <code>SELECT</code> змінюють лише те, що бачить читач. Значення в таблиці лишаються сирими, і з ними далі можна рахувати й сортувати.</p>
+    <p>Код прикладів можна змінювати й виконувати (Ctrl+Enter). Кнопка <strong>Повернути приклад</strong> угорі праворуч повертає початковий текст. Перед пастками стоїть питання «Передбачте результат»: спершу подумайте, потім перевірте запуском.</p>
+  </section>
+
+  <section class="section" data-title="printf()">
+    <div class="section-head"><span class="section-no">01</span><h2>printf(): числа і текст</h2></div>
+    <div class="prose">
+      <p><code>printf(шаблон, значення, …)</code> (від <em>print formatted</em>) підставляє значення в шаблон. <code>%d</code> означає ціле число, <code>%.2f</code> дробове рівно з двома знаками після крапки, <code>%s</code> рядок. Усе інше в шаблоні, наприклад « грн», виводиться як є.</p>
+    </div>
+    <pre class="sql" data-run>SELECT visit_date, cost, printf('%.2f грн', cost) AS price
+FROM visits
+LIMIT 5;</pre>
+    <div class="prose">
+      <p>Кілька специфікаторів заповнюються по черзі, зліва направо. <code>%.2f</code> не обрізає, а округлює.</p>
+    </div>
+    <pre class="sql" data-run>SELECT printf('%s, %d р.', name, age) AS label
+FROM animals
+LIMIT 4;</pre>
+    <pre class="sql" data-run>-- середній чек за вакцинацію: 661.4285714… → 661.43
+SELECT AVG(cost), printf('%.2f грн', AVG(cost))
+FROM visits
+WHERE reason = 'вакцинація';</pre>
+    <div class="callout info">
+      <span class="callout-title">format() — те саме</span>
+      <p>З версії SQLite 3.38 та сама функція доступна як <code>format()</code>. У старіших версіях є лише <code>printf()</code>. Версію показує <code>SELECT sqlite_version();</code>.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Ширина і нулі">
+    <div class="section-head"><span class="section-no">02</span><h2>Ширина поля, нулі, вирівнювання</h2></div>
+    <div class="prose">
+      <p>Число одразу після <code>%</code> задає <strong>мінімальну</strong> ширину результату. <code>0</code> перед ним заповнює нулями, <code>-</code> притискає до лівого краю. Довше значення не обрізається. Реальний приклад: номери карток пацієнтів однакової довжини.</p>
+    </div>
+    <pre class="sql" data-run>SELECT printf('Картка №%03d · %s', id, name) AS label
+FROM animals
+ORDER BY id
+LIMIT 5;</pre>
+    <pre class="sql" data-run>-- квадратні дужки — лише щоб було видно пробіли
+SELECT printf('[%8.2f]', cost) AS right_aligned, printf('[%-8d]', id) AS left_aligned
+FROM visits
+LIMIT 4;</pre>
+    <div class="prose">
+      <p>Вирівнювання пробілами потрібне там, де немає таблиці з лініями: у консолі <code>sqlite3</code>, у текстовому файлі, в SMS чи на чеку.</p>
+    </div>
+    <div data-ex="l11-money"></div>
+  </section>
+
+  <section class="section" data-title="Пастки printf()">
+    <div class="section-head"><span class="section-no">03</span><h2>Пастки printf(): NULL і кирилиця</h2></div>
+    <div data-quiz="q11-null"></div>
+    <div class="prose">
+      <p><strong>NULL стає нулем.</strong> <code>%d</code> і <code>%.2f</code> показують <code>NULL</code> як <code>0</code>, а <code>%s</code> як порожній рядок. Помилки немає, а звіт бреше: незважений кролик «важить» 0 кг. Як це виправити, показано в розділі 11.</p>
+      <p><strong>Кирилиця і ширина.</strong> Для <code>%s</code> ширину printf() рахує в <strong>байтах</strong>. Українська літера в UTF-8 займає 2 байти: «Рекс» має 4 символи, але 8 байтів. Прапорець <code>!</code> змушує рахувати в символах.</p>
+    </div>
+    <pre class="sql" data-run>SELECT printf('[%-10s]', 'Рекс') AS bytes, printf('[%!-10s]', 'Рекс') AS chars;</pre>
+  </section>
+
+  <section class="section" data-title="Число чи текст">
+    <div class="section-head"><span class="section-no">04</span><h2>Число чи текст: printf() і round(). Ділення цілих</h2></div>
+    <div class="prose">
+      <p><code>round(x, n)</code> округлює, але результат лишається <strong>числом</strong>: з ним можна рахувати й правильно сортувати. <code>printf()</code> повертає <strong>текст</strong>, тож форматуємо в самому кінці, лише для показу.</p>
+    </div>
+    <pre class="sql" data-run>SELECT round(AVG(cost), 2) AS number, printf('%.2f', AVG(cost)) AS text, typeof(printf('%.2f', AVG(cost))) AS type
+FROM visits
+WHERE reason = 'вакцинація';</pre>
+    <div data-quiz="q11-sort"></div>
+    <div class="prose">
+      <p>Друга пастка з числами: ділення двох цілих у SQLite цілочисельне. <code>10 / 4</code> дає <code>2</code>, дробова частина відкидається без попередження.</p>
+    </div>
+    <div data-quiz="q11-div"></div>
+    <pre class="sql" data-run>SELECT 10 / 4 AS whole, 10 / 4.0 AS exact, round(10 / 4.0, 1) AS rounded;</pre>
+  </section>
+
+  <section class="section" data-title="Поточна дата">
+    <div class="section-head"><span class="section-no">05</span><h2>Поточна дата і час</h2></div>
+    <div class="prose">
+      <p>SQLite зберігає дати як текст у форматі ISO 8601 (<code>'РРРР-ММ-ДД'</code>), але має функції, що цей формат розуміють. <code>date('now')</code> і <code>datetime('now')</code> повертають поточний момент <strong>за UTC</strong>: у Києві це на 2–3 години менше за місцевий час. Місцевий час дає модифікатор <code>'localtime'</code>.</p>
+    </div>
+    <pre class="sql" data-run>SELECT date('now') AS today_utc,
+       datetime('now') AS now_utc,
+       datetime('now', 'localtime') AS now_local;</pre>
+    <div class="prose">
+      <p>Це зручно для значень за замовчуванням (Лекція 6): <code>created_at TEXT DEFAULT (datetime('now'))</code>. Виклик функції в <code>DEFAULT</code> обов'язково в дужках, інакше буде <code>syntax error</code>.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Зсув дати">
+    <div class="section-head"><span class="section-no">06</span><h2>Арифметика з датами: модифікатори</h2></div>
+    <div class="prose">
+      <p>Другий аргумент <code>date()</code> є рядком-модифікатором: <code>'+30 days'</code>, <code>'-1 month'</code>, <code>'+1 year'</code>. Реальні задачі клініки: контрольний огляд через 14 днів, ревакцинація через рік.</p>
+    </div>
+    <pre class="sql" data-run>SELECT visit_date,
+       date(visit_date, '+14 days') AS checkup,
+       date(visit_date, '+1 year') AS revaccination
+FROM visits
+WHERE reason = 'вакцинація';</pre>
+    <div data-quiz="q11-month"></div>
+    <div class="prose">
+      <p><strong>Обережно з <code>'+1 month'</code> наприкінці місяця.</strong> SQLite змінює номер місяця, а неіснуючі дні переносить далі. Якщо потрібен останній день місяця, ставте модифікатори поспіль, зліва направо: на перше число, плюс місяць, мінус день.</p>
+    </div>
+    <pre class="sql" data-run>SELECT date('2026-03-31', '+1 month') AS naive,
+       date('2026-03-31', 'start of month', '+2 months', '-1 day') AS end_of_next_month;</pre>
+  </section>
+
+  <section class="section" data-title="julianday()">
+    <div class="section-head"><span class="section-no">07</span><h2>Скільки днів між датами: julianday()</h2></div>
+    <div data-quiz="q11-minus"></div>
+    <div class="prose">
+      <p><code>julianday()</code> перетворює дату на кількість днів від умовної точки відліку. Різниця двох таких чисел дає кількість днів між датами. Результат дробовий, бо враховує й час доби. <code>CAST(… AS INTEGER)</code> лишає цілі дні.</p>
+    </div>
+    <pre class="sql" data-run>-- між двома вакцинаціями Рекса
+SELECT julianday('2026-05-02') - julianday('2026-03-02') AS days,
+       CAST(julianday('2026-05-02') - julianday('2026-03-02') AS INTEGER) AS whole_days;</pre>
+    <pre class="sql" data-run>-- скільки днів минуло від кожного візиту до сьогодні
+SELECT id, visit_date, CAST(julianday('now') - julianday(visit_date) AS INTEGER) AS days_ago
+FROM visits
+ORDER BY visit_date DESC
+LIMIT 5;</pre>
+  </section>
+
+  <section class="section" data-title="strftime()">
+    <div class="section-head"><span class="section-no">08</span><h2>strftime(): частина дати і будь-який формат</h2></div>
+    <div class="prose">
+      <p><code>strftime(шаблон, дата)</code> (від <em>string format time</em>): <code>%Y</code> рік, <code>%m</code> місяць, <code>%d</code> день, <code>%w</code> день тижня. Решта символів шаблону переноситься як є, тож так само записується українська дата <code>ДД.ММ.РРРР</code>.</p>
+    </div>
+    <pre class="sql" data-run>SELECT visit_date,
+       strftime('%Y', visit_date) AS year,
+       strftime('%m', visit_date) AS month,
+       strftime('%d.%m.%Y', visit_date) AS ua_date,
+       strftime('%w', visit_date) AS weekday
+FROM visits
+LIMIT 5;</pre>
+    <div class="callout">
+      <span class="callout-title">%w: неділя — це 0</span>
+      <p>Тиждень у <code>%w</code> починається з неділі: <code>'0'</code> неділя, <code>'1'</code> понеділок, … <code>'6'</code> субота. Не з понеділка, як в українському календарі.</p>
+    </div>
+    <div data-quiz="q11-text"></div>
+    <div class="prose">
+      <p>Результат <code>strftime()</code> завжди <strong>текст</strong>. Порівнюйте з <code>'03'</code> або перетворюйте на число.</p>
+    </div>
+    <pre class="sql" data-run>SELECT COUNT(*) AS march_visits
+FROM visits
+WHERE CAST(strftime('%m', visit_date) AS INTEGER) = 3;</pre>
+    <div data-ex="l11-dates"></div>
+  </section>
+
+  <section class="section" data-title="Звіт за місяцями">
+    <div class="section-head"><span class="section-no">09</span><h2>strftime() і GROUP BY: звіт за місяцями</h2></div>
+    <div class="prose">
+      <p>Це звичайний <code>GROUP BY</code> (Лекція 9), але за результатом <code>strftime()</code>. <code>GROUP BY visit_date</code> дав би окрему групу на кожен день. Шаблон <code>'%m'</code> без року злив би березень 2026-го і березень 2027-го в одну групу. Тому для місячного звіту беремо <code>'%Y-%m'</code>.</p>
+    </div>
+    <pre class="sql" data-run>SELECT strftime('%Y-%m', visit_date) AS month,
+       COUNT(*) AS visits,
+       printf('%.2f грн', SUM(cost)) AS revenue
+FROM visits
+GROUP BY month
+ORDER BY month;</pre>
+    <div data-ex="l11-month"></div>
+  </section>
+
+  <section class="section" data-title="Некоректні дати">
+    <div class="section-head"><span class="section-no">10</span><h2>Некоректна дата: мовчазний NULL, а не помилка</h2></div>
+    <div class="prose">
+      <p>Текст не у форматі <code>РРРР-ММ-ДД</code> функції дати мовчки перетворюють на <code>NULL</code>. Неіснуючий день місяця непомітно переноситься в наступний місяць. Отже, функції дати дані не перевіряють.</p>
+    </div>
+    <pre class="sql" data-run>SELECT strftime('%Y', '15.03.2026') AS ua_format,
+       date('2026-3-5') AS no_zeros,
+       date('2026-02-30') AS feb_30;</pre>
+    <div class="prose">
+      <p>Перевіряти треба на вході, обмеженням <code>CHECK</code> (Лекція 6). Обидві половини умови потрібні: <code>date('15.03.2026')</code> дає <code>NULL</code>, а умова, що дала <code>NULL</code>, <code>CHECK</code> не порушує.</p>
+    </div>
+    <pre class="sql" data-run>CREATE TABLE appointments (
+    id INTEGER PRIMARY KEY,
+    visit_date TEXT NOT NULL
+        CHECK (date(visit_date) IS NOT NULL AND date(visit_date) = visit_date)
+);
+INSERT INTO appointments (visit_date) VALUES ('2026-05-10');   -- пройде
+INSERT INTO appointments (visit_date) VALUES ('15.03.2026');   -- буде відхилено</pre>
+  </section>
+
+  <section class="section" data-title="Склеювання і NULL">
+    <div class="section-head"><span class="section-no">11</span><h2>Склеювання рядків, NULL і coalesce()</h2></div>
+    <div class="prose">
+      <p>Оператор <code>||</code> склеює рядки. Так з прізвища й імені виходить один рядок для листа чи етикетки.</p>
+    </div>
+    <div data-quiz="q11-concat"></div>
+    <div class="prose">
+      <p>Будь-яка операція з <code>NULL</code> дає <code>NULL</code>, тож один порожній email «з'їдає» весь рядок, навіть прізвище. <code>coalesce(x, y, …)</code> повертає перше значення, яке не <code>NULL</code>. Для двох значень є ще <code>ifnull(x, y)</code>.</p>
+    </div>
+    <pre class="sql" data-run>SELECT last_name || ' ' || first_name || ', ' || coalesce(email, 'email не вказано') AS contact
+FROM owners
+WHERE id IN (1, 4, 8);</pre>
+    <div class="prose">
+      <p>Так само виправляється незважений кролик. <code>printf()</code> ніколи не повертає <code>NULL</code>, тому <code>coalesce()</code> навколо нього не спрацює. Натомість склеюємо <code>weight || ' кг'</code>: для <code>NULL</code> увесь шматок стане <code>NULL</code>, і тоді <code>coalesce()</code> підставить текст.</p>
+    </div>
+    <pre class="sql" data-run>SELECT name, coalesce(weight || ' кг', 'не зважено') AS weight_label
+FROM animals
+WHERE species = 'кролик';</pre>
+    <div data-ex="l11-contact"></div>
+  </section>
+
+  <section class="section" data-title="Заголовки">
+    <div class="section-head"><span class="section-no">12</span><h2>Заголовки колонок і сортування за сирими значеннями</h2></div>
+    <div class="prose">
+      <p>Псевдонім після <code>AS</code> (Лекція 3) стає заголовком колонки. Якщо в ньому є пробіл, його беруть у подвійні лапки. Одинарні лапки в SQL для текстових значень, подвійні для назв колонок і таблиць.</p>
+    </div>
+    <pre class="sql" data-run>SELECT strftime('%d.%m.%Y', visit_date) AS "Дата візиту",
+       reason AS "Причина",
+       printf('%.2f грн', cost) AS "Вартість"
+FROM visits
+ORDER BY visit_date
+LIMIT 6;</pre>
+    <div data-quiz="q11-ddmm"></div>
+    <div class="prose">
+      <p><strong>Сортуйте за сирою колонкою.</strong> <code>ORDER BY visit_date</code>, а не <code>ORDER BY "Дата візиту"</code>; <code>ORDER BY cost</code>, а не за відформатованою ціною. Відформатоване значення вже текст і сортується посимвольно.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Типові помилки">
+    <div class="section-head"><span class="section-no">13</span><h2>Типові помилки і як їх розпізнати</h2><span class="tag-new">нове</span></div>
+    <div class="prose"><p>Майже всі помилки форматування мовчазні: запит виконується, але показує неправду.</p></div>
+    <div class="tbl-wrap"><table class="res dict">
+      <thead><tr><th>Симптом</th><th>Причина</th><th>Виправлення</th></tr></thead>
+      <tbody>
+        <tr><td>У звіті 0 кг, 0.00 грн там, де даних немає</td><td><code>printf()</code> показує <code>NULL</code> як 0</td><td><code>coalesce(x || ' кг', 'не зважено')</code></td></tr>
+        <tr><td>Цілий рядок NULL, хоча прізвище є</td><td>Склеювання з <code>NULL</code> дає <code>NULL</code></td><td><code>coalesce()</code> навколо частини, що може бути NULL</td></tr>
+        <tr><td>«750 грн» вище за «3200 грн»</td><td>Сортування за текстом із <code>printf()</code></td><td><code>ORDER BY cost</code>, а не за відформатованою колонкою</td></tr>
+        <tr><td>1 квітня раніше за 2 березня</td><td>Сортування за датою як <code>ДД.ММ.РРРР</code></td><td><code>ORDER BY visit_date</code></td></tr>
+        <tr><td>0 рядків з <code>strftime('%m', …) = 3</code></td><td><code>strftime()</code> повертає текст <code>'03'</code></td><td><code>= '03'</code> або <code>CAST(… AS INTEGER)</code></td></tr>
+        <tr><td>Середнє 2 замість 2.5</td><td>Ціле поділене на ціле</td><td>Ділити на <code>4.0</code></td></tr>
+        <tr><td>Різниця дат дорівнює 0 або 1</td><td>Мінус між рядками бере лише рік</td><td><code>julianday(b) - julianday(a)</code></td></tr>
+        <tr><td>Нагадування на 1 травня замість 30 квітня</td><td><code>'+1 month'</code> від 31-го числа</td><td><code>'start of month', '+2 months', '-1 day'</code></td></tr>
+        <tr><td>У звіті за місяцями група NULL</td><td>Дата не в форматі <code>РРРР-ММ-ДД</code></td><td>Перевіряти на вході через <code>CHECK</code></td></tr>
+        <tr><td>Час «відстає» на 2–3 години</td><td><code>'now'</code> повертає UTC</td><td><code>datetime('now', 'localtime')</code></td></tr>
+      </tbody></table></div>
+    <div class="prose"><p>Половина цих помилок є в розминці <a href="#practice-13">Практики 13</a>: там їх треба знайти й виправити.</p></div>
+  </section>
+
+  <section class="section" data-title="Підсумок">
+    <div class="section-head"><span class="section-no">14</span><h2>Підсумок</h2></div>
+    <div class="prose">
+      <ul>
+        <li><code>printf()</code>: <code>%d</code> ціле, <code>%.2f</code> два знаки з округленням, <code>%s</code> рядок. Ширина після <code>%</code>, <code>0</code> нулі, <code>-</code> ліворуч, <code>!</code> рахує символи для кирилиці.</li>
+        <li><code>printf()</code> повертає текст і показує <code>NULL</code> як 0. <code>round()</code> лишає число. Ціле / ціле дає ціле.</li>
+        <li><code>date('now')</code> і <code>datetime('now')</code> працюють за UTC; <code>'localtime'</code> дає місцевий час.</li>
+        <li>Модифікатори <code>'+14 days'</code>, <code>'+1 year'</code>, <code>'start of month'</code> зсувають дату; <code>'+1 month'</code> від 31-го переносить зайві дні.</li>
+        <li>Різниця <code>julianday()</code> дає кількість днів між датами.</li>
+        <li><code>strftime()</code> витягує частину дати як текст і записує дату в будь-якому вигляді; <code>'%Y-%m'</code> є основою звіту за місяцями.</li>
+        <li>Функції дати на некоректних даних мовчки дають <code>NULL</code> або зсув: перевірка лише через <code>CHECK</code>.</li>
+        <li><code>||</code> склеює, <code>NULL</code> «з'їдає» весь рядок, <code>coalesce()</code> підставляє значення.</li>
+        <li><code>AS "…"</code> дає заголовки; сортуємо за сирими колонками.</li>
+      </ul>
+      <p><strong>Від слів до SQL.</strong> Як перекласти вимоги до вигляду звіту на функції:</p>
+    </div>
+    <div data-dict="11"></div>
+    <div class="prose">
+      <p><a href="#practice-13">Перейти до Практики 13: кінець місяця в «Лапі» →</a></p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Література">
+    <div class="section-head"><h2>Рекомендована література</h2></div>
+    <div class="refs">
+      <p>Holywell S. (укр. переклад: yar-lukomsky). <em>Посібник зі стилю коду SQL (SQL style guide) — українська версія.</em> sqlstyle.guide, 2024 (<a href="https://www.sqlstyle.guide/ua/" target="_blank" rel="noopener">відкритий доступ</a>). Конвенції іменування, регістр ключових слів, відступи, оформлення запитів.</p>
+      <p>Харів Н. О. <em>Бази даних та інформаційні системи.</em> Рівне: НУВГП, 2018 (<a href="https://ep3.nuwm.edu.ua/9129/3/%D0%A5%D0%B0%D1%80%D1%96%D0%B2%20%D0%9D.%D0%9E.pdf" target="_blank" rel="noopener">відкритий доступ</a>). Практичні приклади SQL-запитів із послідовним стилем оформлення.</p>
+    </div>
+  </section>
+</article>
+</template>
+
 <script>
 // We are modularizing this manually because the current modularize setting in Emscripten has some issues:
 // https://github.com/kripken/emscripten/issues/5820
@@ -925,7 +1206,7 @@ const COURSE_MAP = [
   { module: 'Модуль 2. Розширені запити та аналіз даних', lessons: [
     ['Л7', 'JOIN'], ['Л8', 'Агрегатні функції'], ['Л9', 'GROUP BY і HAVING'],
     ['Л10', 'Сортування і фільтрація', 'lecture-10'], ['П12', 'Практика: сортування і фільтрація', 'practice-12'],
-    ['Л11', 'Запити форматування таблиць'] ] },
+    ['Л11', 'Запити форматування таблиць', 'lecture-11'], ['П13', 'Практика: форматування таблиць', 'practice-13'] ] },
   { module: 'Модуль 3. Транзакції, індекси, імпорт', lessons: [
     ['Л12', 'ACID'], ['Л13', 'BEGIN, COMMIT, ROLLBACK'], ['Л14', 'Індекси, EXPLAIN'], ['Л15', 'CSV → SQLite'], ['Л16', 'Згенеровані стовпці'] ] },
   { module: 'Модуль 4. PostgreSQL', lessons: [
@@ -1169,6 +1450,253 @@ const DICTIONARY_HTML = `<div class="tbl-wrap"><table class="res dict">
     <tr><td>«починається з», «закінчується на», «містить»</td><td><code>LIKE 'x%'</code>, <code>'%x'</code>, <code>'%x%'</code></td><td>прізвища на -енко</td></tr>
     <tr><td>«не вказано», «немає даних»</td><td><code>IS NULL</code></td><td>власники без email</td></tr>
   </tbody></table></div>`;
+
+const PRACTICE_12 = {
+  route: 'practice-12',
+  eyebrow: 'Модуль 2 · Практика 12',
+  title: 'Тиждень у «Лапі»',
+  lead: 'Спершу розминка: шість зламаних запитів. Далі тиждень доручень від персоналу клініки: кожен правильний запит щось змінює в житті «Лапи» і відкриває наступне доручення.',
+  dictionary: DICTIONARY_HTML,
+  warmup: WARMUP,
+  missions: MISSIONS,
+  questions: [
+    'Чому в шаблоні «топ-N» обов\'язково писати <code>ORDER BY</code> перед <code>LIMIT</code>? Що станеться, якщо прибрати <code>ORDER BY</code> і лишити тільки <code>LIMIT 3</code>?',
+    'Коли варто обирати <code>IN</code>, а коли <code>BETWEEN</code>, якщо обидва можна замінити ланцюжком <code>OR</code>/<code>AND</code>?',
+    'Чому висновок про регістр і кирилицю в <code>LIKE</code> важливий саме для цього курсу, де майже всі текстові дані українською?',
+  ],
+  deliverable: 'Тренажер готує до звітної роботи. Здача, як і раніше, на власному варіанті бази: <code>lab_work_12.sql</code>, <code>lab_work_12.db</code> і <code>lab_work_12.md</code> з поясненнями до завдань 1–5.',
+  refs: 'Ті самі джерела, що й до <a href="#lecture-10">Лекції 10</a>: методичні вказівки УжНУ (лабораторні роботи 2 і 4) та посібник Н. О. Харів (розділ SQL).',
+  lecture: 'lecture-10',
+};
+</script>
+<script>// Lecture 11 + Practice 13: formatting output. Same story DB; nothing is added to the seed.
+
+Object.assign(LECTURE_EXERCISES, {
+  'l11-money': {
+    title: 'Вправа 1. Ціни для людей',
+    tables: ['visits'],
+    start: 'SELECT id, cost\nFROM visits;',
+    tasks: [
+      { text: 'Виведіть <code>id</code> і вартість кожного візиту у форматі <code>450.00 грн</code>.',
+        ref: "SELECT id, printf('%.2f грн', cost) FROM visits",
+        require: [['printf', /\b(printf|format)\s*\(/i]],
+        hint: "<code>printf('%.2f грн', cost)</code>: два знаки після крапки і текст «грн»." },
+      { text: 'Виведіть номер картки кожної тварини у форматі <code>Картка №007 · Кеша</code>, за порядком <code>id</code>.',
+        ref: "SELECT printf('Картка №%03d · %s', id, name) FROM animals ORDER BY id",
+        require: [['printf', /\b(printf|format)\s*\(/i]],
+        hint: "Два специфікатори в одному шаблоні: <code>%03d</code> для id (три цифри з нулями) і <code>%s</code> для клички." },
+    ],
+  },
+  'l11-dates': {
+    title: 'Вправа 2. Дати для людей',
+    tables: ['visits'],
+    start: 'SELECT id, visit_date\nFROM visits;',
+    tasks: [
+      { text: 'Виведіть <code>id</code> і дату контрольного огляду: через 14 днів після візиту, у форматі <code>РРРР-ММ-ДД</code>.',
+        ref: "SELECT id, date(visit_date, '+14 days') FROM visits",
+        hint: "<code>date(visit_date, '+14 days')</code>." },
+      { text: 'Виведіть <code>id</code> і дату візиту в українському форматі <code>ДД.ММ.РРРР</code>.',
+        ref: "SELECT id, strftime('%d.%m.%Y', visit_date) FROM visits",
+        require: [['strftime', /\bstrftime\s*\(/i]],
+        hint: "<code>strftime('%d.%m.%Y', visit_date)</code>." },
+    ],
+  },
+  'l11-month': {
+    title: 'Вправа 3. Звіт за місяцями',
+    tables: ['visits'],
+    start: 'SELECT visit_date\nFROM visits;',
+    tasks: [
+      { text: 'Для кожного місяця виведіть місяць у форматі <code>2026-03</code> і кількість візитів, за порядком місяців.',
+        ref: "SELECT strftime('%Y-%m', visit_date) AS m, COUNT(*) FROM visits GROUP BY m ORDER BY m",
+        require: [['GROUP BY', /\bgroup\s+by\b/i]],
+        hint: "Групуйте за <code>strftime('%Y-%m', visit_date)</code>, рахуйте <code>COUNT(*)</code>, сортуйте за тим самим місяцем." },
+    ],
+  },
+  'l11-contact': {
+    title: 'Вправа 4. Контакти без дірок',
+    tables: ['owners'],
+    start: "SELECT last_name || ' ' || first_name, email\nFROM owners;",
+    tasks: [
+      { text: 'Виведіть прізвище й ім\'я однією колонкою (через пробіл) і email; де email не вказано, напишіть <code>немає email</code>.',
+        ref: "SELECT last_name || ' ' || first_name, coalesce(email, 'немає email') FROM owners",
+        require: [['coalesce або ifnull', /\b(coalesce|ifnull)\s*\(/i]],
+        hint: "<code>coalesce(email, 'немає email')</code> повертає email, а якщо його немає, то текст." },
+    ],
+  },
+});
+for (const key of ['l11-money', 'l11-dates', 'l11-month', 'l11-contact'])
+  LECTURE_EXERCISES[key].tasks.forEach((t, i) => { t.id = `${key}-${i + 1}`; });
+
+Object.assign(QUIZZES, {
+  'q11-null': { q: 'Кролик Сніжок не зважений (weight = NULL). Що покаже запит?', sql: "SELECT name, printf('%.2f кг', weight) FROM animals WHERE name = 'Сніжок';",
+    options: ['Сніжок | NULL', 'Сніжок | 0.00 кг', 'Помилку'], correct: 1,
+    explain: 'printf() показує NULL у %d і %.2f як 0, а в %s як порожній рядок. Без жодної помилки звіт «каже», що Сніжок важить 0 кг.' },
+  'q11-sort': { q: 'Відсортуємо за відформатованою ціною від більшої. Яка вартість опиниться першою?', sql: "SELECT id, printf('%.2f грн', cost) AS price FROM visits ORDER BY price DESC LIMIT 1;",
+    options: ['3200.00 грн (найдорожчий візит)', '750.00 грн', '2900.00 грн'], correct: 1,
+    explain: 'printf() повертає текст, а текст порівнюється посимвольно: «7» більше за «3», тому «750.00» стоїть вище за «3200.00». Сортуйте за сирою колонкою cost.' },
+  'q11-div': { q: 'У квітні 10 візитів. Скільки в середньому за тиждень, якщо поділити на 4?', sql: "SELECT COUNT(*) / 4 FROM visits WHERE visit_date BETWEEN '2026-04-01' AND '2026-04-30';",
+    options: ['2.5', '2', '3'], correct: 1,
+    explain: 'Ціле поділене на ціле дає ціле: дробова частина відкидається без попередження. Щоб отримати 2.5, ділимо на 4.0.' },
+  'q11-month': { q: 'Мурку щепили 31 березня. Коли нагадувати через місяць?', sql: "SELECT date('2026-03-31', '+1 month');",
+    options: ["'2026-04-30'", "'2026-05-01'", 'NULL'], correct: 1,
+    explain: 'SQLite міняє номер місяця на 04, отримує неіснуюче 31 квітня і переносить зайвий день у травень. Останній день наступного місяця дає ланцюжок модифікаторів.' },
+  'q11-minus': { q: 'Скільки днів між вакцинаціями Рекса?', sql: "SELECT '2026-05-02' - '2026-03-02';",
+    options: ['61', '0', 'Помилку'], correct: 1,
+    explain: 'Мінус між рядками SQLite рахує як числа і бере лише цифри на початку кожного рядка: 2026 − 2026 = 0. Для днів між датами потрібна julianday().' },
+  'q11-text': { q: 'У березні 9 візитів. Скільки рядків поверне цей запит?', sql: "SELECT id, visit_date FROM visits WHERE strftime('%m', visit_date) = 3;",
+    options: ['9', '0', 'Помилку'], correct: 1,
+    explain: "strftime() повертає текст '03', а текст не дорівнює числу 3. Порівнюйте з '03' або перетворіть: CAST(strftime('%m', visit_date) AS INTEGER) = 3." },
+  'q11-concat': { q: 'У Шевчука email не вказано. Що буде в його рядку?', sql: "SELECT last_name || ' ' || first_name || ', ' || email FROM owners WHERE last_name = 'Шевчук';",
+    options: ["'Шевчук Андрій, '", 'NULL', "'Шевчук Андрій, NULL'"], correct: 1,
+    explain: 'Будь-яка операція з NULL дає NULL. Один порожній email «з’їдає» весь рядок, навіть прізвище.' },
+  'q11-ddmm': { q: 'Сортуємо за датою, вже записаною як ДД.ММ.РРРР. Що буде першим?', sql: "SELECT strftime('%d.%m.%Y', visit_date) AS d FROM visits ORDER BY d LIMIT 1;",
+    options: ['02.03.2026 (найраніший візит)', '01.04.2026', '02.05.2026'], correct: 1,
+    explain: "Тепер це текст, і він сортується посимвольно: «01» менше за «02», тож 1 квітня стає першим. Сортуйте за сирою колонкою visit_date." },
+});
+
+const DICTIONARY_11_HTML = `<div class="tbl-wrap"><table class="res dict">
+  <thead><tr><th>У дорученні сказано</th><th>Пишемо</th><th>Приклад</th></tr></thead>
+  <tbody>
+    <tr><td>«у гривнях з копійками», «два знаки після коми»</td><td><code>printf('%.2f грн', x)</code></td><td>450.00 грн</td></tr>
+    <tr><td>«номер з нулями попереду», «три цифри»</td><td><code>printf('%03d', x)</code></td><td>Картка №007</td></tr>
+    <tr><td>«округлити, але рахувати далі»</td><td><code>round(x, 2)</code></td><td>661.43</td></tr>
+    <tr><td>«у форматі ДД.ММ.РРРР»</td><td><code>strftime('%d.%m.%Y', дата)</code></td><td>02.03.2026</td></tr>
+    <tr><td>«через N днів / місяців / рік»</td><td><code>date(дата, '+N days')</code></td><td>контрольний огляд</td></tr>
+    <tr><td>«скільки днів минуло / між»</td><td><code>julianday(b) - julianday(a)</code></td><td>61 день між щепленнями</td></tr>
+    <tr><td>«за місяцями», «по роках»</td><td><code>strftime('%Y-%m', дата)</code> + <code>GROUP BY</code></td><td>звіт за місяць</td></tr>
+    <tr><td>«сьогодні», «зараз»</td><td><code>date('now')</code>, <code>datetime('now', 'localtime')</code></td><td>дата друку звіту</td></tr>
+    <tr><td>«одним рядком», «склеїти»</td><td><code>a || ' ' || b</code></td><td>Мельник Ганна</td></tr>
+    <tr><td>«якщо не вказано, написати …»</td><td><code>coalesce(x, '…')</code></td><td>немає email</td></tr>
+    <tr><td>«заголовок колонки „…“»</td><td><code>AS "Дата візиту"</code></td><td>шапка звіту</td></tr>
+  </tbody></table></div>`;
+
+const PRACTICE_13 = {
+  route: 'practice-13',
+  eyebrow: 'Модуль 2 · Практика 13',
+  title: 'Кінець місяця в «Лапі»',
+  lead: 'Спершу розминка: шість запитів, що «працюють», але повертають не те. Далі доручення на кінець місяця: звіти, нагадування й етикетки, які мають бути зрозумілі людям, а не лише базі.',
+  dictionary: DICTIONARY_11_HTML,
+  warmup: {
+    title: 'Розминка. Знайдіть і виправте помилку',
+    tables: ['visits', 'owners', 'animals'],
+    start: '',
+    tasks: [
+      { id: 'p13-w1', text: 'Має показати візити за квітень (id, дата), але повертає 0 рядків.',
+        start: "SELECT id, visit_date\nFROM visits\nWHERE strftime('%m', visit_date) = 4;",
+        ref: "SELECT id, visit_date FROM visits WHERE strftime('%m', visit_date) = '04'",
+        hint: "strftime() повертає текст <code>'04'</code>, а не число 4. Порівнюйте з текстом або зробіть <code>CAST(… AS INTEGER)</code>." },
+      { id: 'p13-w2', text: 'Контакт потрібен для всіх 14 власників. У двох рядках замість тексту NULL; для них напишіть <code>email не вказано</code>.',
+        start: "SELECT last_name || ' ' || first_name || ', ' || email AS contact\nFROM owners;",
+        ref: "SELECT last_name || ' ' || first_name || ', ' || coalesce(email, 'email не вказано') AS contact FROM owners",
+        hint: "NULL «з'їдає» весь склеєний рядок. Загорніть у <code>coalesce()</code> лише ту частину, що може бути NULL: <code>coalesce(email, 'email не вказано')</code>." },
+      { id: 'p13-w3', text: 'Потрібні 3 найдорожчі візити (id і вартість як <code>3200.00 грн</code>), а виходять візити по 750 грн.',
+        start: "SELECT id, printf('%.2f грн', cost) AS price\nFROM visits\nORDER BY price DESC\nLIMIT 3;",
+        ref: "SELECT id, printf('%.2f грн', cost) AS price FROM visits ORDER BY cost DESC LIMIT 3",
+        hint: 'price вже текст і сортується посимвольно. Сортуйте за сирою колонкою <code>cost</code>.' },
+      { id: 'p13-w4', text: 'Має порахувати, скільки днів минуло між 2 березня і 2 травня 2026 року, а показує 0.',
+        start: "SELECT '2026-05-02' - '2026-03-02' AS days;",
+        ref: "SELECT julianday('2026-05-02') - julianday('2026-03-02') AS days",
+        hint: 'Мінус між рядками бере лише рік на початку. Дні між датами дає різниця <code>julianday()</code>.' },
+      { id: 'p13-w5', text: 'Середня кількість візитів на тиждень у квітні (10 візитів / 4 тижні) має бути 2.5, а виходить 2.',
+        start: "SELECT COUNT(*) / 4 AS per_week\nFROM visits\nWHERE visit_date BETWEEN '2026-04-01' AND '2026-04-30';",
+        ref: "SELECT COUNT(*) / 4.0 AS per_week FROM visits WHERE visit_date BETWEEN '2026-04-01' AND '2026-04-30'",
+        hint: 'Ціле поділене на ціле дає ціле. Зробіть дробовим хоча б одне число: <code>4.0</code>.' },
+      { id: 'p13-w6', text: 'Для кроликів у звіті має стояти вага як <code>2.3 кг</code>, а для незважених <code>не зважено</code>. Зараз Сніжок «важить» 0 кг.',
+        start: "SELECT name, printf('%s кг', weight) AS w\nFROM animals\nWHERE species = 'кролик';",
+        ref: "SELECT name, coalesce(weight || ' кг', 'не зважено') AS w FROM animals WHERE species = 'кролик'",
+        hint: "printf() ніколи не повертає NULL, тому coalesce() навколо нього не спрацює. Склейте <code>weight || ' кг'</code> (для NULL це дасть NULL) і вже це загорніть у <code>coalesce()</code>." },
+    ],
+  },
+  missions: [
+    { id: 'p13-1', who: 'nina', title: 'Журнал за квітень', tables: ['visits'],
+      think: ['Які три колонки і в якому вигляді має кожна?', 'За чим сортувати: за гарною датою чи за сирою?'],
+      brief: 'Друкую журнал візитів за квітень для архіву. Колонки: «Дата» у форматі ДД.ММ.РРРР, «Причина», «Вартість» як 450.00 грн. Від найранішого візиту.',
+      start: 'SELECT visit_date, reason, cost\nFROM visits\n',
+      ref: "SELECT strftime('%d.%m.%Y', visit_date) AS \"Дата\", reason AS \"Причина\", printf('%.2f грн', cost) AS \"Вартість\" FROM visits WHERE visit_date BETWEEN '2026-04-01' AND '2026-04-30' ORDER BY visit_date",
+      hint: "Три функції: <code>strftime('%d.%m.%Y', …)</code>, <code>printf('%.2f грн', …)</code>, а сортування <code>ORDER BY visit_date</code> за сирою датою.",
+      impact: r => `У журналі ${r.values.length} рядків, від ${r.values[0][0]} до ${r.values.at(-1)[0]}. Архів прийняв без зауважень.`,
+      scene: r => ({ title: 'Журнал · квітень 2026', items: r.values.slice(0, 4).map(v => `${v[0]} · ${v[1]} · ${v[2]}`).concat(r.values.length > 4 ? [`… ще ${r.values.length - 4}`] : []) }) },
+    { id: 'p13-2', who: 'oksana', title: 'Нагадування про ревакцинацію', tables: ['visits'],
+      think: ['Від якої дати рахувати і на скільки зсунути?', 'Як одразу записати результат у форматі ДД.ММ.РРРР?'],
+      brief: 'Готую SMS-нагадування: ревакцинація через рік після щеплення. Для кожного візиту з причиною «вакцинація»: номер візиту, id тварини і дата ревакцинації як ДД.ММ.РРРР. За датою щеплення.',
+      start: "SELECT id, animal_id, visit_date\nFROM visits\nWHERE reason = 'вакцинація'\n",
+      ref: "SELECT id, animal_id, strftime('%d.%m.%Y', date(visit_date, '+1 year')) FROM visits WHERE reason = 'вакцинація' ORDER BY visit_date",
+      hint: "Спершу зсув, потім формат: <code>strftime('%d.%m.%Y', date(visit_date, '+1 year'))</code>. strftime() приймає і модифікатори напряму: <code>strftime('%d.%m.%Y', visit_date, '+1 year')</code>.",
+      impact: r => `Оксана запланувала ${r.values.length} SMS. Перше піде ${r.values[0][2]}.`,
+      scene: r => ({ title: 'Черга SMS', items: r.values.slice(0, 3).map(v => `Тварина №${v[1]}: ревакцинація до ${v[2]}`) }) },
+    { id: 'p13-3', who: 'lesia', title: 'Інтервал між візитами', tables: ['visits'],
+      think: ['Чому відняти дати як текст не можна?', 'Що дає різниця julianday() і чи потрібна ціла частина?'],
+      brief: 'Ричарда лікували 9 березня і повторно 9 травня. Скільки днів пройшло між візитами? Мені потрібне одне число.',
+      start: "SELECT '2026-05-09' - '2026-03-09';",
+      ref: "SELECT julianday('2026-05-09') - julianday('2026-03-09')",
+      hint: "<code>julianday('2026-05-09') - julianday('2026-03-09')</code>. Можна обгорнути в <code>CAST(… AS INTEGER)</code>.",
+      impact: r => `Між візитами Ричарда ${r.values[0][0]} ${plural(r.values[0][0], 'день', 'дні', 'днів')}. Лікарка внесла інтервал у картку.` },
+    { id: 'p13-4', who: 'nina', title: 'Виручка по місяцях', tables: ['visits'],
+      think: ['За яким значенням групувати, щоб березень 2026 не злився з березнем 2027?', 'Що станеться з сумою, якщо її відформатувати, а потім за нею сортувати?'],
+      brief: 'Для власника потрібна таблиця: місяць (2026-03), кількість візитів і виручка як 11560.00 грн. За порядком місяців.',
+      start: 'SELECT visit_date, cost\nFROM visits\n',
+      ref: "SELECT strftime('%Y-%m', visit_date) AS m, COUNT(*), printf('%.2f грн', SUM(cost)) FROM visits GROUP BY m ORDER BY m",
+      require: [['GROUP BY', /\bgroup\s+by\b/i]],
+      hint: "<code>GROUP BY strftime('%Y-%m', visit_date)</code>, а в SELECT <code>COUNT(*)</code> і <code>printf('%.2f грн', SUM(cost))</code>.",
+      impact: r => `Звіт за ${r.values.length} місяці. Найкращий місяць: ${[...r.values].sort((a, b) => parseFloat(b[2]) - parseFloat(a[2]))[0][0]}.`,
+      scene: r => ({ title: 'Виручка', items: r.values.map(v => `${v[0]} · ${v[1]} візитів · ${v[2]}`) }) },
+    { id: 'p13-5', who: 'max', title: 'Список для листівок', tables: ['owners'],
+      think: ['Яка частина рядка може бути NULL і «з’їсти» весь рядок?', 'За якою колонкою сортувати: за склеєною чи за прізвищем?'],
+      brief: 'Друкуємо новорічні листівки. Колонки: «Прізвище Ім’я» однією колонкою і email, а де його немає, «немає email». За прізвищем.',
+      start: "SELECT last_name, first_name, email\nFROM owners\n",
+      ref: "SELECT last_name || ' ' || first_name, coalesce(email, 'немає email') FROM owners ORDER BY last_name",
+      require: [['coalesce або ifnull', /\b(coalesce|ifnull)\s*\(/i]],
+      hint: "<code>last_name || ' ' || first_name</code> і <code>coalesce(email, 'немає email')</code>, сортування <code>ORDER BY last_name</code>.",
+      impact: r => `${r.values.length} ${plural(r.values.length, 'листівка', 'листівки', 'листівок')}. Без email: ${r.values.filter(v => v[1] === 'немає email').map(v => v[0]).join(', ')}; їм Максим надішле паперові.` },
+    { id: 'p13-6', who: 'oksana', title: 'Етикетки на картки', tables: ['animals'],
+      think: ['Скільки специфікаторів у шаблоні і в якому порядку значення?', 'Як отримати 007 замість 7?'],
+      brief: 'Друкую нові етикетки на картки пацієнтів. Рядок має виглядати точно так: <code>Картка №007 · Кеша</code>. Для всіх тварин, за номером.',
+      start: 'SELECT id, name\nFROM animals\n',
+      ref: "SELECT printf('Картка №%03d · %s', id, name) FROM animals ORDER BY id",
+      require: [['printf', /\b(printf|format)\s*\(/i]],
+      hint: "<code>printf('Картка №%03d · %s', id, name)</code> і <code>ORDER BY id</code>.",
+      impact: r => `Надруковано ${r.values.length} ${plural(r.values.length, 'етикетку', 'етикетки', 'етикеток')}.`,
+      scene: r => ({ title: 'Етикетки', items: r.values.slice(0, 5).map(v => v[0]) }) },
+    { id: 'p13-7', who: 'nina', title: 'Середній чек за послугами', tables: ['visits'],
+      think: ['Сортувати за відформатованим текстом чи за числом?', 'Що станеться з порядком 2933.33 і 661.43, якщо це текст?'],
+      brief: 'Яка послуга приносить найбільший середній чек? Колонки: причина візиту і середня вартість як 2933.33 грн. Від найбільшого середнього.',
+      start: 'SELECT reason, cost\nFROM visits\n',
+      ref: "SELECT reason, printf('%.2f грн', AVG(cost)) FROM visits GROUP BY reason ORDER BY AVG(cost) DESC",
+      require: [['GROUP BY', /\bgroup\s+by\b/i]],
+      hint: "<code>GROUP BY reason</code>, у SELECT <code>printf('%.2f грн', AVG(cost))</code>, а сортувати за числом: <code>ORDER BY AVG(cost) DESC</code>.",
+      impact: r => `Лідер: ${r.values[0][0]} (${r.values[0][1]}). Якби сортувати за текстом, першою стала б ${r.values.slice().sort((a, b) => b[1].localeCompare(a[1]))[0][0]}.` },
+    { id: 'p13-8', who: 'lesia', title: 'Давно не були', tables: ['visits'],
+      think: ['Як порахувати дні від візиту до 01.06.2026?', 'Умову можна записати через julianday() або порівняти дату з date(…, \'-60 days\'). Чим ці підходи схожі?'],
+      brief: 'Станом на 1 червня 2026 мені потрібні візити, після яких минуло понад 60 днів: номер, дата і скільки днів минуло (цілим числом). Від найдавнішого.',
+      start: 'SELECT id, visit_date\nFROM visits\n',
+      ref: "SELECT id, visit_date, CAST(julianday('2026-06-01') - julianday(visit_date) AS INTEGER) FROM visits WHERE julianday('2026-06-01') - julianday(visit_date) > 60 ORDER BY visit_date",
+      hint: "Дні: <code>CAST(julianday('2026-06-01') - julianday(visit_date) AS INTEGER)</code>. Умова: та сама різниця <code>&gt; 60</code>.",
+      impact: r => `${r.values.length} ${plural(r.values.length, 'візит потребує', 'візити потребують', 'візитів потребують')} дзвінка. Найдавніший був ${r.values[0][2]} ${plural(r.values[0][2], 'день', 'дні', 'днів')} тому.` },
+    { id: 'p13-9', bonus: true, who: 'nina', title: 'Останній день місяця', tables: ['visits'],
+      think: ["Чому date(x, '+1 month', '-1 day') від 31 березня дасть не те?", 'Який модифікатор спершу «скидає» дату на перше число?'],
+      brief: 'Для кожного місяця з візитами: місяць (2026-03) і дата закриття звіту — останній день цього місяця (2026-03-31). Без повторів, за порядком місяців.',
+      start: "SELECT strftime('%Y-%m', visit_date), visit_date\nFROM visits\n",
+      ref: "SELECT DISTINCT strftime('%Y-%m', visit_date) AS m, date(visit_date, 'start of month', '+1 month', '-1 day') FROM visits ORDER BY m",
+      hint: "<code>date(visit_date, 'start of month', '+1 month', '-1 day')</code> і <code>DISTINCT</code>.",
+      impact: r => `Дати закриття: ${r.values.map(v => v[1]).join(', ')}.` },
+    { id: 'p13-10', bonus: true, who: 'oksana', title: 'Вихідні дні', tables: ['visits'],
+      think: ["Яким числом strftime('%w') позначає неділю?", 'Це число чи текст?'],
+      brief: 'Скільки візитів припало на вихідні (субота або неділя)? Одне число.',
+      start: 'SELECT visit_date\nFROM visits\n',
+      ref: "SELECT COUNT(*) FROM visits WHERE strftime('%w', visit_date) IN ('0', '6')",
+      hint: "<code>%w</code> дає день тижня текстом: <code>'0'</code> неділя, <code>'6'</code> субота. <code>WHERE strftime('%w', visit_date) IN ('0', '6')</code>.",
+      impact: r => `На вихідні ${plural(r.values[0][0], 'припав', 'припали', 'припало')} ${r.values[0][0]} ${plural(r.values[0][0], 'візит', 'візити', 'візитів')}. Оксана поставить у суботу ще одного адміністратора.` },
+  ],
+  questions: [
+    'Чи змінюється значення в таблиці після запиту з <code>printf()</code>? Чому форматування роблять «на виході»?',
+    'Чому <code>strftime()</code> повертає текст, і де це ламає запит (порівняння, сортування)?',
+    'Чому <code>coalesce(printf(…), …)</code> не допомагає з NULL, а <code>coalesce(x || \' кг\', …)</code> допомагає?',
+    'Що з поведінки функцій дати на некоректних даних випливає для <code>CHECK</code>-обмежень (Лекція 6)?',
+  ],
+  deliverable: 'Тренажер готує до звітної роботи. Здача, як і раніше, на власному варіанті бази: <code>lab_work_13.sql</code>, <code>lab_work_13.db</code> і <code>lab_work_13.md</code> з поясненнями до завдань 1–5.',
+  refs: 'Ті самі джерела, що й до <a href="#lecture-11">Лекції 11</a>: посібник зі стилю SQL (sqlstyle.guide, українська версія) та посібник Н. О. Харів.',
+  lecture: 'lecture-11',
+};
 </script>
 <script>'use strict';
 
@@ -1198,7 +1726,7 @@ function h(html) {
 const KEYWORDS = new Set(('select from where and or not in is null like between order by asc desc limit offset distinct as ' +
   'group having join left right inner outer cross on insert into values update set delete create table nulls first last ' +
   'case when then else end primary key references integer text real default union all exists').split(' '));
-const FUNCS = new Set('count sum avg min max lower upper length substr round coalesce ifnull date strftime'.split(' '));
+const FUNCS = new Set('count sum avg min max lower upper length substr round coalesce ifnull date datetime strftime julianday printf format typeof'.split(' '));
 function highlight(sql) {
   const re = /(--[^\n]*)|('(?:[^']|'')*'?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][A-Za-z_0-9]*)|([\s\S])/g;
   let out = '';
@@ -1244,6 +1772,7 @@ function explainError(message) {
     [/no such column: (.+)/, m => `Немає колонки <code>${esc(m[1])}</code>. Перевірте назву в схемі таблиці.`],
     [/no such table: (.+)/, m => `Немає таблиці <code>${esc(m[1])}</code>. Доступні: owners, animals, vets, visits.`],
     [/near "(.+?)": syntax error/, m => `Синтаксична помилка біля <code>${esc(m[1])}</code>. Перевірте порядок ключових слів і коми.`],
+    [/CHECK constraint failed: (.+)/, m => `Обмеження CHECK відхилило рядок (<code>${esc(m[1])}</code>). Саме для цього воно й існує.`],
     [/incomplete input/, () => 'Запит обірвався. Можливо, бракує закривальної лапки чи дужки.'],
     [/unrecognized token: "(.+?)"/, m => `Незрозумілий фрагмент <code>${esc(m[1])}</code>. Часто це незакрита лапка.`],
   ];
@@ -1343,7 +1872,7 @@ function biggestMove(rows) {
 function buildStages(sql) {
   const p = splitClauses(sql);
   if (!p || !p.from) return { unsupported: 'Покроковий режим працює для одного запиту SELECT ... FROM.' };
-  if (p.group || p.having) return { unsupported: 'GROUP BY і HAVING покроково покажемо в Лекції 9. Тут доступний звичайний результат.' };
+  if (p.group || p.having) return { unsupported: 'Покроковий режим для GROUP BY ще в розробці. Нижче звичайний результат.' };
   if (/\bjoin\b|,/i.test(p.from)) return { unsupported: 'Покроковий режим поки що працює для запитів до однієї таблиці.' };
 
   const distinct = /^distinct\b/i.test(p.select);
@@ -1718,9 +2247,10 @@ function enhanceRunnable(pre) {
       <button class="btn btn-ghost" data-act="sandbox">Відкрити в пісочниці</button>
     </div><div class="run-out"></div></div>`);
   pre.replaceWith(box);
+  if (!/\bfrom\b/i.test(original)) $('[data-act="step"]', box).hidden = true;
   const out = $('.run-out', box);
   const restore = $('[data-act="restore"]', box);
-  const run = () => { out.innerHTML = splitStatements(editor.value).map(s => resultHtml(runSql(s))).join(''); };
+  const run = () => { out.innerHTML = scriptHtml(editor.value); };
   const editor = makeEditor(original.replace(/\n$/, ''), run, () => { restore.hidden = editor.value === original.replace(/\n$/, ''); });
   $('.ed-slot', box).replaceWith(editor.el);
   box.addEventListener('click', e => {
@@ -1731,6 +2261,26 @@ function enhanceRunnable(pre) {
     if (act === 'restore') { editor.value = original.replace(/\n$/, ''); restore.hidden = true; out.innerHTML = ''; editor.focus(); }
   });
 }
+// Runs a multi-statement example in ONE database, so CREATE/INSERT/SELECT build on each other.
+function scriptHtml(sql) {
+  const db = freshDb();
+  const parts = [];
+  try {
+    for (const stmt of db.iterateStatements(sql)) {
+      const columns = stmt.getColumnNames();
+      const values = [];
+      while (stmt.step()) values.push(stmt.get());
+      parts.push(columns.length
+        ? resultHtml({ ok: true, result: { columns, values } })
+        : `<p class="res-meta">Виконано: ${esc(stmt.getSQL().trim().split(/\s+/).slice(0, 3).join(' '))} …</p>`);
+    }
+  } catch (e) {
+    parts.push(resultHtml({ ok: false, error: e.message }));
+  } finally {
+    db.close();
+  }
+  return parts.join('');
+}
 function splitStatements(sql) {
   return stripComments(sql).split(';').map(s => s.trim()).filter(Boolean);
 }
@@ -1738,17 +2288,29 @@ function splitStatements(sql) {
 // ---------- views ----------
 let sandboxSql = 'SELECT *\nFROM animals\nLIMIT 10;';
 
+const LECTURES = {
+  'lecture-10': ['l10-'],
+  'lecture-11': ['l11-'],
+};
+const PRACTICES = { 'practice-12': PRACTICE_12, 'practice-13': PRACTICE_13 };
+
 const ROUTES = {
   home: renderHome,
-  'lecture-10': renderLecture,
-  'practice-12': renderPractice,
+  'lecture-10': main => renderLecture(main, 'lecture-10'),
+  'practice-12': main => renderPractice(main, PRACTICE_12),
+  'lecture-11': main => renderLecture(main, 'lecture-11'),
+  'practice-13': main => renderPractice(main, PRACTICE_13),
   sandbox: renderSandbox,
 };
 
 function lessonProgress(route) {
-  const ids = route === 'lecture-10'
-    ? Object.values(LECTURE_EXERCISES).flatMap(ex => ex.tasks.map(t => t.id))
-    : route === 'practice-12' ? [...WARMUP.tasks.map(t => t.id), ...MISSIONS.map(m => m.id)] : [];
+  let ids = [];
+  if (LECTURES[route]) {
+    ids = Object.entries(LECTURE_EXERCISES).filter(([k]) => k.startsWith(LECTURES[route][0])).flatMap(([, ex]) => ex.tasks.map(t => t.id));
+  } else if (PRACTICES[route]) {
+    const cfg = PRACTICES[route];
+    ids = [...cfg.warmup.tasks.map(t => t.id), ...cfg.missions.map(m => m.id)];
+  }
   return { done: ids.filter(id => progress[id]).length, total: ids.length };
 }
 
@@ -1767,11 +2329,17 @@ function renderRail() {
       <span class="soon"><span class="num">Л9</span><span>GROUP BY і HAVING</span></span>
       ${link('lecture-10', 'Л10', 'Сортування і фільтрація')}
       ${link('practice-12', 'П12', 'Практика: тиждень у «Лапі»')}
-      <span class="soon"><span class="num">Л11</span><span>Форматування таблиць</span></span></div>`;
+      ${link('lecture-11', 'Л11', 'Форматування таблиць')}
+      ${link('practice-13', 'П13', 'Практика: кінець місяця')}</div>`;
 }
 
 function renderHome(main) {
-  const lp = lessonProgress('lecture-10'), pp = lessonProgress('practice-12');
+  const card = (route, eyebrow, title, meta) => {
+    const pr = lessonProgress(route);
+    return `<a class="card" href="#${route}"><span class="eyebrow">${eyebrow}</span><span class="card-title">${title}</span>
+      <span class="card-meta">${meta} · ${pr.done}/${pr.total}</span>
+      <div class="progress-bar"><span style="width:${(pr.done / pr.total) * 100}%"></span></div></a>`;
+  };
   const page = h(`<div class="page">
     <header class="hero">
       <span class="eyebrow">Бази даних в інформаційних системах</span>
@@ -1779,12 +2347,10 @@ function renderHome(main) {
       <p class="lead">Інтерактивний супровід курсу. Кожен запит виконується прямо в браузері на базі невеликої ветклініки, яка росте разом із курсом: нові таблиці, нові клієнти, нові задачі від персоналу.</p>
     </header>
     <div class="cards">
-      <a class="card" href="#lecture-10"><span class="eyebrow">Лекція 10</span><span class="card-title">Сортування і фільтрація</span>
-        <span class="card-meta">ORDER BY, DISTINCT, BETWEEN, IN, LIKE · ${lp.done}/${lp.total} вправ</span>
-        <div class="progress-bar"><span style="width:${(lp.done / lp.total) * 100}%"></span></div></a>
-      <a class="card" href="#practice-12"><span class="eyebrow">Практика 12</span><span class="card-title">Тиждень у «Лапі»</span>
-        <span class="card-meta">Розминка, 9 доручень персоналу і 3 додаткові · ${pp.done}/${pp.total} виконано</span>
-        <div class="progress-bar"><span style="width:${(pp.done / pp.total) * 100}%"></span></div></a>
+      ${card('lecture-10', 'Лекція 10', 'Сортування і фільтрація', 'ORDER BY, DISTINCT, BETWEEN, IN, LIKE')}
+      ${card('practice-12', 'Практика 12', 'Тиждень у «Лапі»', 'Розминка, 9 доручень і 3 додаткові')}
+      ${card('lecture-11', 'Лекція 11', 'Форматування таблиць', 'printf(), дати, coalesce()')}
+      ${card('practice-13', 'Практика 13', 'Кінець місяця в «Лапі»', 'Розминка, 8 доручень і 2 додаткові')}
       <a class="card" href="#sandbox"><span class="eyebrow">Вільний режим</span><span class="card-title">Пісочниця</span>
         <span class="card-meta">Будь-які запити до бази «Лапа», з покроковим переглядом</span></a>
     </div>
@@ -1803,8 +2369,8 @@ function renderHome(main) {
   main.replaceChildren(page);
 }
 
-function renderLecture(main) {
-  const page = $('#tpl-lecture-10').content.firstElementChild.cloneNode(true);
+function renderLecture(main, id) {
+  const page = $(`#tpl-${id}`).content.firstElementChild.cloneNode(true);
   main.replaceChildren(page);
   const toc = $('[data-toc]', page);
   page.querySelectorAll('.section[data-title]').forEach(sec => {
@@ -1813,7 +2379,7 @@ function renderLecture(main) {
     toc.append(b);
   });
   page.querySelectorAll('pre.sql[data-run]').forEach(enhanceRunnable);
-  page.querySelectorAll('[data-dict]').forEach(slot => { slot.outerHTML = DICTIONARY_HTML; });
+  page.querySelectorAll('[data-dict]').forEach(slot => { slot.outerHTML = slot.dataset.dict === '11' ? DICTIONARY_11_HTML : DICTIONARY_HTML; });
   page.querySelectorAll('[data-quiz]').forEach(slot => mountQuiz(slot, QUIZZES[slot.dataset.quiz]));
   page.querySelectorAll('[data-ex]').forEach(slot => {
     const ex = LECTURE_EXERCISES[slot.dataset.ex];
@@ -1821,39 +2387,35 @@ function renderLecture(main) {
   });
 }
 
-function renderPractice(main) {
+function renderPractice(main, cfg) {
+  const MISSIONS = cfg.missions;
   const page = h(`<div class="page">
     <header class="hero">
-      <span class="eyebrow">Модуль 2 · Практика 12</span>
-      <h1>Тиждень у «Лапі»</h1>
-      <p class="lead">Спершу розминка: шість зламаних запитів. Далі тиждень доручень від персоналу клініки: кожен правильний запит щось змінює в житті «Лапи» і відкриває наступне доручення.</p>
+      <span class="eyebrow">${cfg.eyebrow}</span>
+      <h1>${cfg.title}</h1>
+      <p class="lead">${cfg.lead}</p>
       <div class="progress-bar"><span></span></div>
     </header>
     <section class="section">
       <h2>Як перекласти доручення на SQL</h2>
       <p class="lead">Доручення пишуть звичайною мовою. Шукайте в ньому слова-підказки: кожне відповідає частині запиту.</p>
-      ${DICTIONARY_HTML}
+      ${cfg.dictionary}
     </section>
     <div class="warmup"></div>
-    <section class="section"><h2>Тиждень у «Лапі»</h2></section>
+    <section class="section"><h2>Доручення</h2></section>
     <div class="missions"></div>
     <section class="section"><h2>Контрольні питання</h2>
-      <ol class="questions">
-        <li>Чому в шаблоні «топ-N» обов'язково писати <code>ORDER BY</code> перед <code>LIMIT</code>? Що станеться, якщо прибрати <code>ORDER BY</code> і лишити тільки <code>LIMIT 3</code>?</li>
-        <li>Коли варто обирати <code>IN</code>, а коли <code>BETWEEN</code>, якщо обидва можна замінити ланцюжком <code>OR</code>/<code>AND</code>?</li>
-        <li>Чому висновок про регістр і кирилицю в <code>LIKE</code> важливий саме для цього курсу, де майже всі текстові дані українською?</li>
-      </ol>
+      <ol class="questions">${cfg.questions.map(q => `<li>${q}</li>`).join('')}</ol>
     </section>
-    <div class="callout info"><span class="callout-title">Що здавати викладачу</span>
-      <p>Тренажер готує до звітної роботи. Здача, як і раніше, на власному варіанті бази: <code>lab_work_12.sql</code>, <code>lab_work_12.db</code> і <code>lab_work_12.md</code> з поясненнями до завдань 1–5.</p></div>
+    <div class="callout info"><span class="callout-title">Що здавати викладачу</span><p>${cfg.deliverable}</p></div>
     <section class="section"><h2>Рекомендована література</h2>
-      <div class="refs"><p>Ті самі джерела, що й до <a href="#lecture-10">Лекції 10</a>: методичні вказівки УжНУ (лабораторні роботи 2 і 4) та посібник Н. О. Харів (розділ SQL).</p></div>
+      <div class="refs"><p>${cfg.refs}</p></div>
     </section>
   </div>`);
   main.replaceChildren(page);
-  mountBench($('.warmup', page), { ...WARMUP, onSolved: () => updateProgress() });
+  mountBench($('.warmup', page), { ...cfg.warmup, onSolved: () => updateProgress() });
   const updateProgress = () => {
-    const ids = lessonProgress('practice-12');
+    const ids = lessonProgress(cfg.route);
     $('.hero .progress-bar span', page).style.width = `${(ids.done / ids.total) * 100}%`;
   };
   let open = null;
@@ -1900,7 +2462,7 @@ function renderPractice(main) {
     updateProgress();
     const nextSlot = $('.next', card);
     if (i + 1 >= MISSIONS.length) { nextSlot.innerHTML = '<p class="res-meta">Усі доручення, зокрема додаткові, виконано.</p>'; return; }
-    const nextLabel = MISSIONS[i + 1].bonus && !MISSIONS[i].bonus ? 'Тиждень закрито. До додаткових доручень' : 'Наступне доручення';
+    const nextLabel = MISSIONS[i + 1].bonus && !MISSIONS[i].bonus ? 'Основні доручення виконано. До додаткових' : 'Наступне доручення';
     nextSlot.innerHTML = `<button class="btn btn-primary">${nextLabel} →</button>`;
     $('button', nextSlot).addEventListener('click', () => { open = i + 1; draw(); $('.missions', page).children[i + 1]?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   }
