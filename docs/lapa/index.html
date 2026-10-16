@@ -271,6 +271,37 @@ table.res.dict td:first-child { width: 42%; }
 .expected { display: grid; gap: 8px; border: 1.5px dashed var(--line); padding: 10px 12px; }
 .warmup .bench { box-shadow: var(--shadow); }
 
+/* ---------- transactions: log, crash, state diff ---------- */
+.tx-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.log-row { display: grid; grid-template-columns: 2em minmax(0, 1fr) auto auto; gap: 6px 10px; align-items: center; padding: 6px 8px; border: 1px solid var(--line); background: var(--surface); }
+.log-n { font: 0.74rem var(--f-mono); color: var(--muted); }
+.log-sql { background: transparent; border: 0; padding: 0; font-size: 0.82rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.log-chip { font: 600 0.7rem var(--f-mono); text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border: 1.5px solid var(--line); color: var(--muted); white-space: nowrap; }
+.log-detail { grid-column: 2 / -1; min-width: 0; }
+.log-detail.err { color: var(--ink); background: var(--bad-soft); padding: 6px 8px; font-size: 0.86rem; }
+.log-row.tx .log-chip { border-color: var(--frame); color: var(--ink); }
+.log-row.wait .log-chip { border-color: var(--mark); color: var(--hl-ink); background: var(--hl); }
+.log-row.auto .log-chip { border-color: var(--good); color: var(--good); }
+.log-row.good .log-chip { border-color: var(--good); background: var(--good); color: var(--surface); }
+.log-row.undo .log-chip { border-color: var(--pen); color: var(--pen); }
+.log-row.bad { border-color: var(--pen); }
+.log-row.bad .log-chip { background: var(--pen); border-color: var(--pen); color: var(--pen-ink); }
+.log-row.skipped { opacity: 0.45; border-style: dashed; }
+.crash-btn { min-height: 30px; padding: 2px 8px; font-size: 0.74rem; border-color: var(--line); color: var(--muted); }
+.crash-btn:hover { color: var(--pen); border-color: var(--pen); box-shadow: 2px 2px 0 var(--pen); }
+.tx-state { display: grid; gap: 8px; border: 1.5px dashed var(--frame); padding: 10px 12px; background: var(--surface); }
+.tx-note { font-size: 0.9rem; background: var(--hl); color: var(--hl-ink); padding: 6px 10px; }
+.tx-note.crash { background: var(--bad-soft); color: var(--ink); border-left: 0; font-weight: 500; }
+table.res.diff tr.added td { background: var(--good-soft); color: var(--good); font-weight: 600; }
+table.res.diff tr.removed td { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--pen); background: var(--bad-soft); }
+table.res.diff td.changed { background: var(--hl); color: var(--hl-ink); font-weight: 600; }
+table.res.diff .was { color: var(--muted); text-decoration: line-through; font-weight: 400; margin-right: 4px; }
+.run-hint { font-size: 0.8rem; color: var(--muted); flex: 1 1 260px; }
+@media (max-width: 640px) {
+  .log-row { grid-template-columns: 2em minmax(0, 1fr); }
+  .log-chip, .crash-btn { grid-column: 2; justify-self: start; }
+}
+
 /* ---------- practice missions ---------- */
 .missions { display: grid; gap: 16px; }
 .mission-head { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px; width: 100%; background: none; border: 0; text-align: left; cursor: pointer; min-height: 64px; }
@@ -395,7 +426,7 @@ FROM animals
 ORDER BY name;</pre>
     <div class="callout">
       <span class="callout-title">Що з цим робити</span>
-      <p>Для чисел, дат і кодів бінарне сортування бездоганне. Для українських імен і назв SQLite без розширення ICU дає «майже алфавітний» порядок. У PostgreSQL (Лекція 17) база з українською локаллю (<code>uk_UA</code>) сортує за правилами абетки. У застосунках поверх SQLite остаточне сортування текстів часто роблять уже в коді програми.</p>
+      <p>Для чисел, дат і кодів бінарне сортування бездоганне. Для українських імен і назв SQLite без розширення ICU дає «майже алфавітний» порядок. У PostgreSQL (Лекція 15) база з українською локаллю (<code>uk_UA</code>) сортує за правилами абетки. У застосунках поверх SQLite остаточне сортування текстів часто роблять уже в коді програми.</p>
     </div>
   </section>
 
@@ -884,6 +915,231 @@ LIMIT 6;</pre>
 </article>
 </template>
 
+<template id="tpl-lecture-12">
+<article class="page">
+  <header class="hero">
+    <span class="eyebrow">Модуль 3 · Лекція 12</span>
+    <h1>Транзакції, ACID і блокування</h1>
+    <p class="lead">BEGIN, COMMIT, ROLLBACK. Чому кілька пов'язаних змін мають відбуватися разом, що гарантують чотири властивості ACID і що SQLite робить, коли в базу хочуть писати двоє одночасно.</p>
+    <div class="toc" data-toc></div>
+  </header>
+
+  <section class="prose">
+    <p>У «Лапі» відкрили касу. Оплата візиту тепер означає <strong>дві</strong> зміни: рядок у таблиці <code>payments</code> і позначку <code>paid = 1</code> у <code>visits</code>. На складі (<code>stock</code>) рахують вакцини й чипи, а в таблиці <code>bonus</code> зберігаються бонусні бали власників. Якщо з двох пов'язаних змін відбулася лише одна, база бреше: гроші отримано, а візит «неоплачений».</p>
+    <p>У цій лекції приклади змінюють дані. Кожен запуск починається з чистої копії бази. Біля кожної команди в прикладах-транзакціях з'являється кнопка <strong>⚡ Збій тут</strong>: вона показує, що лишиться в базі, якщо живлення зникне саме після цієї команди.</p>
+  </section>
+  <pre class="sql" data-run>SELECT * FROM stock;
+SELECT * FROM bonus;
+SELECT id, cost, paid FROM visits WHERE paid = 0;</pre>
+
+  <section class="section" data-title="Розірвана пара">
+    <div class="section-head"><span class="section-no">01</span><h2>Проблема: розірвана пара операцій</h2></div>
+    <div data-quiz="q12-crash"></div>
+    <div class="prose">
+      <p>Виконайте оплату без транзакції і натисніть «⚡ Збій тут» біля першої команди. Оплата вже в базі, а візит досі неоплачений. Обидві команди написані правильно. Проблема в тому, що між ними немає гарантії «або обидві, або жодна».</p>
+    </div>
+    <pre class="sql" data-tx data-watch="SELECT v.id, v.cost, v.paid, p.amount FROM visits v LEFT JOIN payments p ON p.visit_id = v.id WHERE v.id = 21">INSERT INTO payments (visit_id, amount, paid_at) VALUES (21, 2700, '2026-05-06');
+UPDATE visits SET paid = 1 WHERE id = 21;</pre>
+    <div class="prose">
+      <p>Подивіться на позначки біля команд: «Виконано й одразу зафіксовано». Без явної транзакції <strong>кожна команда сама собі транзакція</strong>: вона фіксується одразу, незалежно від сусідніх. Це називають режимом автокоміту.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Транзакція">
+    <div class="section-head"><span class="section-no">02</span><h2>Транзакція: все або нічого</h2></div>
+    <div class="prose">
+      <p><strong>Транзакція</strong> — група команд, що виконується як одне неподільне ціле. Або всі зміни групи застосовуються, або (при збої чи свідомій відмові) жодна. Проміжного стану «виконалась половина» після завершення транзакції в базі не лишається.</p>
+    </div>
+    <div class="pipeline"><span>BEGIN</span><i>→</i><span>INSERT у payments</span><i>→</i><span>UPDATE visits</span><i>→</i><span class="hot">COMMIT: обидві зміни</span><i>або</i><span class="hot">ROLLBACK: жодної</span></div>
+    <div class="prose">
+      <p>Рішення «зафіксувати» чи «скасувати» приймається для всієї групи одразу, а не для кожної команди окремо.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="ACID">
+    <div class="section-head"><span class="section-no">03</span><h2>ACID: чотири властивості надійної транзакції</h2></div>
+    <div class="tbl-wrap"><table class="res dict">
+      <thead><tr><th>Властивість</th><th>Що гарантує</th><th>Що ламається без неї</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Atomicity</strong>, атомарність</td><td>Усі зміни групи або застосовуються, або ні</td><td>Оплата є, а візит «неоплачений»; бали списано, але не зараховано</td></tr>
+        <tr><td><strong>Consistency</strong>, узгодженість</td><td>Після транзакції виконуються всі оголошені обмеження: <code>NOT NULL</code>, <code>UNIQUE</code>, <code>CHECK</code>, ключі</td><td>Від'ємний залишок на складі, дві оплати одного візиту</td></tr>
+        <tr><td><strong>Isolation</strong>, ізольованість</td><td>Незавершену транзакцію не видно іншим користувачам</td><td>Адміністратор ухвалює рішення на даних, які потім скасують</td></tr>
+        <tr><td><strong>Durability</strong>, стійкість</td><td>Після <code>COMMIT</code> результат переживе збій живлення</td><td>Програма каже «збережено», а після перезавантаження запису немає</td></tr>
+      </tbody></table></div>
+    <div data-quiz="q12-durability"></div>
+    <div data-quiz="q12-consistency"></div>
+  </section>
+
+  <section class="section" data-title="BEGIN … COMMIT">
+    <div class="section-head"><span class="section-no">04</span><h2>BEGIN … COMMIT: зафіксувати групу</h2></div>
+    <div class="prose">
+      <p><code>BEGIN</code> відкриває транзакцію: усі наступні команди стають однією групою. <code>COMMIT</code> фіксує всі зміни від <code>BEGIN</code> разом. Натисніть «⚡ Збій тут» біля <code>INSERT</code>: тепер після збою в базі немає нічого, ні оплати, ні позначки. Пара більше не рветься.</p>
+    </div>
+    <pre class="sql" data-tx data-watch="SELECT v.id, v.cost, v.paid, p.amount FROM visits v LEFT JOIN payments p ON p.visit_id = v.id WHERE v.id = 21">BEGIN;
+INSERT INTO payments (visit_id, amount, paid_at) VALUES (21, 2700, '2026-05-06');
+UPDATE visits SET paid = 1 WHERE id = 21;
+COMMIT;</pre>
+    <div data-ex="l12-pay"></div>
+  </section>
+
+  <section class="section" data-title="ROLLBACK">
+    <div class="section-head"><span class="section-no">05</span><h2>BEGIN … ROLLBACK: скасувати групу</h2></div>
+    <div data-quiz="q12-visible"></div>
+    <div class="prose">
+      <p><code>ROLLBACK</code> скасовує всі зміни від останнього <code>BEGIN</code>, так ніби команд не було. До завершення транзакції ви бачите свої зміни у своїй сесії, тож можна спробувати зміну, подивитися на результат і відмовитися від неї.</p>
+    </div>
+    <pre class="sql" data-tx data-watch="SELECT paid, COUNT(*) AS visits FROM visits GROUP BY paid">BEGIN;
+DELETE FROM visits WHERE paid = 0;
+SELECT COUNT(*) AS left_visits FROM visits;
+ROLLBACK;
+SELECT COUNT(*) AS after_rollback FROM visits;</pre>
+    <div data-ex="l12-rollback"></div>
+  </section>
+
+  <section class="section" data-title="Помилка ≠ відкат">
+    <div class="section-head"><span class="section-no">06</span><h2>Головна пастка: помилка не скасовує транзакцію</h2></div>
+    <div data-quiz="q12-error"></div>
+    <div class="prose">
+      <p>Візит 1 уже оплачено, тож друга вставка порушує <code>UNIQUE</code> у <code>payments.visit_id</code>. Помилка відхиляє лише цю одну команду. Транзакція лишається відкритою, і перший <code>INSERT</code> у ній «чекає». Якщо після цього виконати <code>COMMIT</code>, зафіксується частина групи.</p>
+    </div>
+    <pre class="sql" data-tx data-watch="SELECT visit_id, amount FROM payments WHERE visit_id IN (1, 22) ORDER BY visit_id">BEGIN;
+INSERT INTO payments (visit_id, amount, paid_at) VALUES (22, 1950, '2026-05-10');
+INSERT INTO payments (visit_id, amount, paid_at) VALUES (1, 450, '2026-05-10');
+COMMIT;</pre>
+    <div class="prose">
+      <p><strong>Правильна реакція на помилку всередині транзакції — завжди явний <code>ROLLBACK</code>.</strong> Він прибирає і перший, уже «успішний» <code>INSERT</code>.</p>
+    </div>
+    <pre class="sql" data-tx data-watch="SELECT visit_id, amount FROM payments WHERE visit_id IN (1, 22) ORDER BY visit_id">BEGIN;
+INSERT INTO payments (visit_id, amount, paid_at) VALUES (22, 1950, '2026-05-10');
+INSERT INTO payments (visit_id, amount, paid_at) VALUES (1, 450, '2026-05-10');
+ROLLBACK;</pre>
+    <div class="callout">
+      <span class="callout-title">Хто вирішує, COMMIT чи ROLLBACK</span>
+      <p>Сама база не вирішує, що робити після помилки: це рішення програми або людини. У програмах це роблять так: виконали команди, перевірили, чи не було помилки, і лише тоді <code>COMMIT</code>, інакше <code>ROLLBACK</code>.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Переказ балів">
+    <div class="section-head"><span class="section-no">07</span><h2>Переказ бонусних балів: CHECK не рятує без транзакції</h2></div>
+    <div class="prose">
+      <p>У таблиці <code>bonus</code> правило «балів не менше нуля» записане прямо в структурі: <code>CHECK (points &gt;= 0)</code>. Мельник (власник 1, 300 балів) хоче передати 500 балів Бондарю (власник 2, 100 балів). Операцію треба відхилити цілком.</p>
+    </div>
+    <div data-quiz="q12-transfer"></div>
+    <pre class="sql" data-tx data-watch="SELECT owner_id, points FROM bonus ORDER BY owner_id">UPDATE bonus SET points = points + 500 WHERE owner_id = 2;
+UPDATE bonus SET points = points - 500 WHERE owner_id = 1;</pre>
+    <div class="prose">
+      <p>У системі було 450 балів, стало 950. <code>CHECK</code> спрацював правильно, але відхилив лише свою команду. Порядок тут навмисний: якби першим ішло списання, помилка зупинила б операцію одразу, і проблему не було б видно. Але покладатися на порядок команд не можна. З транзакцією і <code>ROLLBACK</code> баланси лишаються 300 і 100 за будь-якого порядку.</p>
+    </div>
+    <pre class="sql" data-tx data-watch="SELECT owner_id, points FROM bonus ORDER BY owner_id">BEGIN;
+UPDATE bonus SET points = points + 500 WHERE owner_id = 2;
+UPDATE bonus SET points = points - 500 WHERE owner_id = 1;
+ROLLBACK;</pre>
+    <div class="prose">
+      <p>Так видно, як властивості працюють разом. Узгодженість визначає, що вважати помилкою (від'ємні бали). Атомарність дає змогу скасувати всю групу, а не лише команду, що впала. Стійкість гарантує, що успішний результат не зникне.</p>
+    </div>
+    <div data-ex="l12-transfer"></div>
+  </section>
+
+  <section class="section" data-title="Вкладені транзакції">
+    <div class="section-head"><span class="section-no">08</span><h2>Вкладених транзакцій немає</h2></div>
+    <div data-quiz="q12-nested"></div>
+    <div class="prose">
+      <p>Повторний <code>BEGIN</code> до <code>COMMIT</code> чи <code>ROLLBACK</code> першої транзакції завершується помилкою. Перша транзакція при цьому лишається відкритою. Для сценаріїв «транзакція в транзакції» SQLite має <code>SAVEPOINT</code>, але це вже за межами курсу.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Блокування">
+    <div class="section-head"><span class="section-no">09</span><h2>Ізольованість і блокування</h2></div>
+    <div class="prose">
+      <p>Без ізольованості один користувач бачить недороблені зміни іншого. Дві адміністраторки працюють з однією базою:</p>
+    </div>
+    <div class="tbl-wrap"><table class="res dict">
+      <thead><tr><th>Крок</th><th>Оксана</th><th>Ірина</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>починає записувати Ричарда на 10:00, транзакція ще не завершена</td><td></td></tr>
+        <tr><td>2</td><td></td><td>бачить «10:00 зайнято» і відмовляє іншому клієнту</td></tr>
+        <tr><td>3</td><td>клієнт передумав, Оксана робить <code>ROLLBACK</code></td><td></td></tr>
+        <tr><td>4</td><td>10:00 знову вільне</td><td>клієнта вже втрачено</td></tr>
+      </tbody></table></div>
+    <div class="prose">
+      <p>Ірина ухвалила рішення на даних, яких насправді ніколи не існувало. Ізольованість гарантує, що вона побачить зміну Оксани лише після <code>COMMIT</code>.</p>
+      <p><strong>Як це робить SQLite.</strong> SQLite — файлова база без окремого сервера, тож ізольованість реалізовано блокуванням файлу. Щойно транзакція виконує першу команду, що змінює дані, SQLite ставить на файл блокування <strong>RESERVED</strong>. Інші процеси далі можуть читати, але жоден не почне власний запис, доки транзакція не завершиться. Спроба писати одночасно дає:</p>
+    </div>
+    <pre class="quiz-sql">Runtime error: database is locked</pre>
+    <div class="prose">
+      <p>Це не збій, а захист: дві одночасні транзакції на запис могли б зіпсувати узгодженість. Замість негайної помилки можна попросити SQLite почекати й повторити спробу:</p>
+    </div>
+    <pre class="sql" data-run>PRAGMA busy_timeout = 5000;   -- чекати до 5 секунд
+PRAGMA busy_timeout;          -- перевірити поточне значення</pre>
+    <div class="callout">
+      <span class="callout-title">Де ви це побачите на практиці: DB Browser</span>
+      <p>DB Browser for SQLite тримає всі ваші правки у відкритій транзакції, доки ви не натиснете «Записати зміни» (Write Changes). Поки ця кнопка активна, файл бази заблоковано на запис. Якщо в цей час виконати <code>INSERT</code> з консолі <code>sqlite3</code> чи зі скрипту, ви отримаєте <code>database is locked</code>. А якщо закрити DB Browser без збереження, усі правки буде скасовано, як після <code>ROLLBACK</code>.</p>
+    </div>
+    <div class="callout info">
+      <span class="callout-title">Обмеження тренажера</span>
+      <p>У браузері працює одна сесія, тож блокування між двома процесами тут не показати. Спробуйте на занятті: відкрийте ту саму <code>.db</code> у DB Browser і в <code>sqlite3</code>, почніть правку в одному і запишіть дані в іншому.</p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Чого ACID не дає">
+    <div class="section-head"><span class="section-no">10</span><h2>Чого ACID не гарантує</h2></div>
+    <div class="prose">
+      <ul>
+        <li><strong>Змістової правильності.</strong> Якщо в схемі немає <code>CHECK (points &gt;= 0)</code>, транзакція спокійно зафіксує від'ємні бали. Узгодженість означає лише дотримання правил, оголошених у схемі.</li>
+        <li><strong>Швидкості.</strong> Транзакція — механізм надійності, а не продуктивності. Довга транзакція ще й тримає блокування і заважає іншим.</li>
+        <li><strong>Дій поза базою.</strong> Якщо програма записала оплату і надіслала SMS, а потім зробила <code>ROLLBACK</code>, оплата зникне, але SMS уже пішло. Зовнішні дії транзакція не скасовує.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" data-title="Типові помилки">
+    <div class="section-head"><span class="section-no">11</span><h2>Типові помилки і як їх розпізнати</h2><span class="tag-new">нове</span></div>
+    <div class="tbl-wrap"><table class="res dict">
+      <thead><tr><th>Симптом</th><th>Причина</th><th>Виправлення</th></tr></thead>
+      <tbody>
+        <tr><td>Оплата є, а візит неоплачений (або навпаки)</td><td>Пов'язані зміни виконано без транзакції</td><td><code>BEGIN; … COMMIT;</code></td></tr>
+        <tr><td>Після помилки частина змін однаково збереглась</td><td>Після помилки виконано <code>COMMIT</code></td><td>Після помилки — <code>ROLLBACK</code></td></tr>
+        <tr><td>Бали «з'явилися з нізвідки»</td><td><code>CHECK</code> відхилив лише одну команду з двох</td><td>Обидві в транзакції, при помилці <code>ROLLBACK</code></td></tr>
+        <tr><td>Зміни «не зберігаються» після закриття програми</td><td>Транзакцію відкрито, але не завершено</td><td>Завершити <code>COMMIT</code>; у DB Browser — «Записати зміни»</td></tr>
+        <tr><td><code>cannot start a transaction within a transaction</code></td><td>Зайвий <code>BEGIN</code> усередині відкритої транзакції</td><td>Один <code>BEGIN</code> на групу</td></tr>
+        <tr><td><code>cannot commit - no transaction is active</code></td><td><code>COMMIT</code> без <code>BEGIN</code> або після <code>ROLLBACK</code></td><td>Перевірити, де почалась і де закінчилась транзакція</td></tr>
+        <tr><td><code>database is locked</code></td><td>Інший процес тримає відкриту транзакцію на запис</td><td>Завершити її або <code>PRAGMA busy_timeout</code></td></tr>
+      </tbody></table></div>
+    <div class="prose"><p>Більшість цих помилок є в розминці <a href="#practice-14">Практики 14</a>.</p></div>
+  </section>
+
+  <section class="section" data-title="Підсумок">
+    <div class="section-head"><span class="section-no">12</span><h2>Підсумок</h2></div>
+    <div class="prose">
+      <ul>
+        <li>Транзакція — неподільна група команд: результат застосовується весь або не застосовується зовсім.</li>
+        <li>Без <code>BEGIN</code> кожна команда — окрема транзакція, що фіксується одразу (автокоміт). Тому пара команд без транзакції може «розірватися».</li>
+        <li><code>BEGIN</code> відкриває, <code>COMMIT</code> фіксує всю групу, <code>ROLLBACK</code> скасовує всю групу, включно з уже виконаними командами.</li>
+        <li>Свої незафіксовані зміни видно у своїй сесії; іншим вони не видні до <code>COMMIT</code>.</li>
+        <li>Помилка всередині транзакції її не скасовує. Після помилки потрібен явний <code>ROLLBACK</code>.</li>
+        <li>ACID: атомарність, узгодженість, ізольованість, стійкість. Кожна захищає від своєї поломки.</li>
+        <li>Вкладених транзакцій у SQLite немає.</li>
+        <li>Поки транзакція на запис не завершена, файл заблоковано: <code>database is locked</code>; <code>PRAGMA busy_timeout</code> дозволяє почекати.</li>
+      </ul>
+      <p><strong>Від слів до SQL.</strong> Як розпізнати в завданні, що потрібна транзакція:</p>
+    </div>
+    <div data-dict="12"></div>
+    <div class="prose">
+      <p><a href="#practice-14">Перейти до Практики 14: каса «Лапи» →</a></p>
+    </div>
+  </section>
+
+  <section class="section" data-title="Література">
+    <div class="section-head"><h2>Рекомендована література</h2></div>
+    <div class="refs">
+      <p>Павловський В. І., Петрашенко А. В. <em>Бази даних та засоби управління.</em> Київ: КПІ ім. Ігоря Сікорського, 2024 (<a href="https://ela.kpi.ua/bitstreams/9f26675d-c42f-485e-aab5-13e6e014b560/download" target="_blank" rel="noopener">відкритий доступ</a>). Розділ про транзакції та паралельний доступ: властивості транзакцій, рівні ізоляції.</p>
+      <p>Павловський В. І., Петрашенко А. В., Побєда Д. В. <em>Бази даних та засоби управління. Практикум.</em> Київ: КПІ ім. Ігоря Сікорського, 2021 (<a href="https://ela.kpi.ua/server/api/core/bitstreams/1b620029-0db7-4e2e-83e7-32f7722a69be/content" target="_blank" rel="noopener">відкритий доступ</a>). Розділ «Ізоляція транзакцій».</p>
+      <p>Харів Н. О. <em>Бази даних та інформаційні системи.</em> Рівне: НУВГП, 2018 (<a href="https://ep3.nuwm.edu.ua/9129/3/%D0%A5%D0%B0%D1%80%D1%96%D0%B2%20%D0%9D.%D0%9E.pdf" target="_blank" rel="noopener">відкритий доступ</a>). Розділ «Транзакції».</p>
+    </div>
+  </section>
+</article>
+</template>
+
 <script>
 // We are modularizing this manually because the current modularize setting in Emscripten has some issues:
 // https://github.com/kripken/emscripten/issues/5820
@@ -1191,6 +1447,10 @@ INSERT INTO visits VALUES
  (26,2,3,'2026-05-23','лікування зубів',1900);
 `;
 
+// Lesson-specific additions to the story DB, keyed by route (filled in by data-NN.js).
+const LESSON_SETUP = {};
+const LESSON_TABLES = {};
+
 const SCHEMA = [
   { name: 'owners', note: 'власники', cols: [['id', 'INTEGER', 'pk'], ['last_name', 'TEXT'], ['first_name', 'TEXT'], ['phone', 'TEXT'], ['email', 'TEXT'], ['city', 'TEXT']] },
   { name: 'animals', note: 'тварини', cols: [['id', 'INTEGER', 'pk'], ['name', 'TEXT'], ['species', 'TEXT'], ['breed', 'TEXT'], ['age', 'INTEGER'], ['weight', 'REAL'], ['status', 'TEXT'], ['owner_id', 'INTEGER', 'fk']] },
@@ -1208,7 +1468,7 @@ const COURSE_MAP = [
     ['Л10', 'Сортування і фільтрація', 'lecture-10'], ['П12', 'Практика: сортування і фільтрація', 'practice-12'],
     ['Л11', 'Запити форматування таблиць', 'lecture-11'], ['П13', 'Практика: форматування таблиць', 'practice-13'] ] },
   { module: 'Модуль 3. Транзакції, індекси, імпорт', lessons: [
-    ['Л12', 'ACID'], ['Л13', 'BEGIN, COMMIT, ROLLBACK'], ['Л14', 'Індекси, EXPLAIN'], ['Л15', 'CSV → SQLite'], ['Л16', 'Згенеровані стовпці'] ] },
+    ['Л12', 'Транзакції, ACID і блокування', 'lecture-12'], ['П14', 'Практика: створення та відкат транзакцій', 'practice-14'], ['Л14', 'Індекси, EXPLAIN'], ['Л15', 'CSV → SQLite'], ['Л16', 'Згенеровані стовпці'] ] },
   { module: 'Модуль 4. PostgreSQL', lessons: [
     ['Л17', 'Перехід до PostgreSQL'], ['Л18', 'Views'], ['Л19', 'Функції'], ['Л20', 'Процедури'], ['Л21', 'Тригери'] ] },
 ];
@@ -1698,6 +1958,257 @@ const PRACTICE_13 = {
   lecture: 'lecture-11',
 };
 </script>
+<script>// Lecture 12 (transactions, ACID, locking) + Practice 14. The clinic gets a cash desk:
+// these tables exist only in these two lessons, so earlier lessons keep their exact results.
+const L12_SETUP = `
+ALTER TABLE visits ADD COLUMN paid INTEGER NOT NULL DEFAULT 0 CHECK (paid IN (0, 1));
+UPDATE visits SET paid = 1 WHERE id <= 20;
+CREATE TABLE payments (
+  id INTEGER PRIMARY KEY,
+  visit_id INTEGER NOT NULL UNIQUE REFERENCES visits(id),
+  amount REAL NOT NULL CHECK (amount > 0),
+  paid_at TEXT NOT NULL
+);
+INSERT INTO payments (visit_id, amount, paid_at) SELECT id, cost, visit_date FROM visits WHERE id <= 20;
+CREATE TABLE stock (
+  item TEXT PRIMARY KEY,
+  quantity INTEGER NOT NULL CHECK (quantity >= 0)
+);
+INSERT INTO stock VALUES ('вакцина', 3), ('чип', 2), ('шприц', 40);
+CREATE TABLE bonus (
+  owner_id INTEGER PRIMARY KEY REFERENCES owners(id),
+  points INTEGER NOT NULL CHECK (points >= 0)
+);
+INSERT INTO bonus VALUES (1, 300), (2, 100), (3, 50);
+`;
+LESSON_SETUP['lecture-12'] = L12_SETUP;
+LESSON_SETUP['practice-14'] = L12_SETUP;
+LESSON_TABLES['lecture-12'] = ['payments', 'visits', 'stock', 'bonus'];
+LESSON_TABLES['practice-14'] = ['payments', 'visits', 'stock', 'bonus'];
+// The sandbox gets every table the course has introduced so far.
+LESSON_SETUP.sandbox = L12_SETUP;
+LESSON_TABLES.sandbox = ['payments', 'stock', 'bonus'];
+
+const PAY_CHECK = (id) => `SELECT v.id, v.cost, v.paid, p.amount FROM visits v LEFT JOIN payments p ON p.visit_id = v.id WHERE v.id = ${id}`;
+
+Object.assign(LECTURE_EXERCISES, {
+  'l12-pay': {
+    title: 'Вправа 1. Атомарна оплата',
+    tables: ['visits', 'payments'],
+    start: "-- оплата візиту 21 (2700 грн) за 06.05.2026\n",
+    tasks: [
+      { text: 'Оплатіть візит 21 однією транзакцією: додайте рядок у <code>payments</code> (сума 2700, дата <code>2026-05-06</code>) і позначте візит як оплачений (<code>paid = 1</code>).',
+        check: PAY_CHECK(21),
+        ref: "BEGIN; INSERT INTO payments (visit_id, amount, paid_at) VALUES (21, 2700, '2026-05-06'); UPDATE visits SET paid = 1 WHERE id = 21; COMMIT;",
+        require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+        hint: 'Дві команди між <code>BEGIN;</code> і <code>COMMIT;</code>: <code>INSERT INTO payments …</code> і <code>UPDATE visits SET paid = 1 WHERE id = 21</code>.' },
+    ],
+  },
+  'l12-rollback': {
+    title: 'Вправа 2. Спробувати й скасувати',
+    tables: ['visits'],
+    start: '',
+    tasks: [
+      { text: 'Усередині транзакції видаліть усі неоплачені візити (<code>paid = 0</code>), перевірте <code>SELECT COUNT(*)</code>, скільки лишилось, і скасуйте все.',
+        check: 'SELECT paid, COUNT(*) FROM visits GROUP BY paid ORDER BY paid',
+        ref: 'BEGIN; DELETE FROM visits WHERE paid = 0; SELECT COUNT(*) FROM visits; ROLLBACK;',
+        require: [['BEGIN', /\bbegin\b/i], ['DELETE', /\bdelete\b/i], ['ROLLBACK', /\brollback\b/i]],
+        hint: '<code>BEGIN;</code> → <code>DELETE …;</code> → <code>SELECT …;</code> → <code>ROLLBACK;</code>. Після ROLLBACK візитів знову 26.' },
+    ],
+  },
+  'l12-transfer': {
+    title: 'Вправа 3. Переказ бонусних балів',
+    tables: ['bonus'],
+    start: 'SELECT owner_id, points FROM bonus;\n',
+    tasks: [
+      { text: 'Перекажіть 50 балів від власника 1 (Мельник) власникові 2 (Бондар) так, щоб списання й зарахування відбулися разом.',
+        check: 'SELECT owner_id, points FROM bonus ORDER BY owner_id',
+        ref: 'BEGIN; UPDATE bonus SET points = points - 50 WHERE owner_id = 1; UPDATE bonus SET points = points + 50 WHERE owner_id = 2; COMMIT;',
+        require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+        hint: 'Два <code>UPDATE bonus SET points = points ± 50 …</code> між <code>BEGIN</code> і <code>COMMIT</code>.' },
+    ],
+  },
+});
+for (const key of ['l12-pay', 'l12-rollback', 'l12-transfer'])
+  LECTURE_EXERCISES[key].tasks.forEach((t, i) => { t.id = `${key}-${i + 1}`; });
+
+Object.assign(QUIZZES, {
+  'q12-crash': { q: 'Транзакції немає. Після першої команди (оплату записано) вимкнули світло, до UPDATE справа не дійшла. Що в базі?',
+    sql: "INSERT INTO payments (visit_id, amount, paid_at) VALUES (21, 2700, '2026-05-06');\n-- ⚡ збій\nUPDATE visits SET paid = 1 WHERE id = 21;",
+    options: ['Нічого не змінилось', 'Оплата є, а візит досі неоплачений', 'Обидві зміни є'], correct: 1,
+    watch: PAY_CHECK(21), crashAfter: 0,
+    explain: 'Без BEGIN кожна команда сама собі транзакція і фіксується одразу. INSERT уже в базі, UPDATE не відбувся: база в неузгодженому стані.' },
+  'q12-durability': { q: 'Після COMMIT одразу вимкнули комп’ютер. Яка властивість гарантує, що оплата збереглася?', sql: 'COMMIT;  -- ⚡ вимкнення живлення',
+    options: ['Atomicity', 'Consistency', 'Isolation', 'Durability'], correct: 3,
+    noRun: true,
+    explain: 'Durability (стійкість): зафіксований результат уже записаний на диск, а не лише в пам’ять.' },
+  'q12-consistency': { q: 'Яка властивість відповідає за те, що після транзакції не порушено CHECK (points >= 0)?', sql: 'points INTEGER NOT NULL CHECK (points >= 0)',
+    options: ['Atomicity', 'Consistency', 'Isolation', 'Durability'], correct: 1,
+    noRun: true,
+    explain: 'Consistency (узгодженість): транзакція переводить базу з коректного стану в коректний, усі оголошені обмеження виконуються.' },
+  'q12-visible': { q: 'Усередині відкритої транзакції, до COMMIT, робимо SELECT. Чи побачимо щойно доданий рядок?',
+    sql: "BEGIN;\nINSERT INTO payments (visit_id, amount, paid_at) VALUES (22, 1950, '2026-05-10');\nSELECT * FROM payments WHERE visit_id = 22;",
+    options: ['Так, у цій самій сесії він видимий', 'Ні, лише після COMMIT'], correct: 0,
+    script: true,
+    explain: 'Власні незафіксовані зміни видно в межах своєї сесії. Іншим користувачам вони не видні до COMMIT (ізольованість).' },
+  'q12-error': { q: 'Візит 1 уже оплачено, тож друга вставка впаде на UNIQUE. Було 20 оплат. Скільки стане після цього скрипту?',
+    sql: "BEGIN;\nINSERT INTO payments (visit_id, amount, paid_at) VALUES (22, 1950, '2026-05-10');\nINSERT INTO payments (visit_id, amount, paid_at) VALUES (1, 450, '2026-05-10');  -- помилка\nCOMMIT;",
+    options: ['20: помилка скасувала транзакцію', '21: перша вставка зафіксувалась', '22'], correct: 1,
+    watch: 'SELECT COUNT(*) AS payments FROM payments',
+    explain: 'Помилка не скасовує транзакцію сама. Команда, що впала, просто не застосувалась, а COMMIT зафіксував усе інше. Правильна реакція на помилку — ROLLBACK.' },
+  'q12-transfer': { q: 'Без транзакції: Бондарю +500, потім Мельник −500 (у неї 300, CHECK не дасть піти в мінус). Скільки балів у Бондаря після?',
+    sql: 'UPDATE bonus SET points = points + 500 WHERE owner_id = 2;\nUPDATE bonus SET points = points - 500 WHERE owner_id = 1;  -- CHECK failed',
+    options: ['100: помилка все скасувала', '600', '−400'], correct: 1,
+    watch: 'SELECT owner_id, points FROM bonus ORDER BY owner_id',
+    explain: 'CHECK відхилив лише другу команду. Перша вже зафіксована сама собою, тож 500 балів з’явилися з нізвідки.' },
+  'q12-nested': { q: 'Що зробить SQLite?', sql: 'BEGIN;\nBEGIN;',
+    options: ['Відкриє вкладену транзакцію', 'Поверне помилку', 'Закриє першу і відкриє нову'], correct: 1,
+    script: true,
+    explain: 'SQLite не дозволяє вкладені транзакції: «cannot start a transaction within a transaction». Перша при цьому лишається відкритою.' },
+});
+
+const DICTIONARY_12_HTML = `<div class="tbl-wrap"><table class="res dict">
+  <thead><tr><th>У дорученні сказано</th><th>Пишемо</th><th>Приклад</th></tr></thead>
+  <tbody>
+    <tr><td>«разом», «одночасно», «або все, або нічого»</td><td><code>BEGIN; … COMMIT;</code></td><td>оплата + позначка «оплачено»</td></tr>
+    <tr><td>«списати і зарахувати», «перенести»</td><td>два <code>UPDATE</code> в одній транзакції</td><td>переказ балів</td></tr>
+    <tr><td>«якщо не вийде, нічого не змінювати»</td><td><code>ROLLBACK;</code> після помилки</td><td>пакет оплат</td></tr>
+    <tr><td>«спробувати й подивитися, але не зберігати»</td><td><code>BEGIN; … SELECT …; ROLLBACK;</code></td><td>пробне видалення</td></tr>
+    <tr><td>«перевірити перед збереженням»</td><td><code>SELECT</code> усередині транзакції до <code>COMMIT</code></td><td>знижка на огляди</td></tr>
+    <tr><td>«не більше, ніж є на складі», «не в мінус»</td><td><code>CHECK (quantity &gt;= 0)</code> + <code>ROLLBACK</code></td><td>списання вакцини</td></tr>
+    <tr><td>«почекати, якщо база зайнята»</td><td><code>PRAGMA busy_timeout = 5000;</code></td><td>два процеси пишуть разом</td></tr>
+  </tbody></table></div>`;
+
+const PAY = (id, amount) => `INSERT INTO payments (visit_id, amount, paid_at) VALUES (${id}, ${amount}, '2026-05-25');`;
+
+const PRACTICE_14 = {
+  route: 'practice-14',
+  eyebrow: 'Модуль 3 · Практика 14',
+  title: 'Каса «Лапи»',
+  lead: 'Сьогодні в клініці працює каса: оплати, склад вакцин і бонусні бали. Кожне доручення змінює базу, і перевіряється вже не результат запиту, а стан бази після вашого скрипту. Незавершена транзакція в кінці скрипту вважається втраченою, як у програмі, яку закрили без збереження.',
+  dictionary: DICTIONARY_12_HTML,
+  warmup: {
+    title: 'Розминка. Знайдіть і виправте помилку',
+    tables: ['payments', 'visits', 'stock', 'bonus'],
+    start: '',
+    tasks: [
+      { id: 'p14-w1', text: 'Оплата візиту 22 має бути атомарною, але дві команди виконуються окремо. Збій між ними лишив би оплату без позначки.',
+        start: `${PAY(22, 1950)}\nUPDATE visits SET paid = 1 WHERE id = 22;`,
+        check: PAY_CHECK(22),
+        ref: `BEGIN; ${PAY(22, 1950)} UPDATE visits SET paid = 1 WHERE id = 22; COMMIT;`,
+        require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+        hint: 'Результат правильний, але без гарантії. Візьміть обидві команди в <code>BEGIN; … COMMIT;</code>.' },
+      { id: 'p14-w2', text: 'Друга оплата впала (візит 1 уже оплачено), а скрипт однаково робить COMMIT. Жодна з двох оплат не має лишитися.',
+        start: `BEGIN;\n${PAY(23, 450)}\n${PAY(1, 450)}\nCOMMIT;`,
+        check: 'SELECT COUNT(*), SUM(amount) FROM payments',
+        ref: `BEGIN; ${PAY(23, 450)} ${PAY(1, 450)} ROLLBACK;`,
+        require: [['ROLLBACK', /\brollback\b/i]],
+        hint: 'Помилка не скасовує транзакцію. Замініть <code>COMMIT</code> на <code>ROLLBACK</code>.' },
+      { id: 'p14-w3', text: 'Списання вакцини зі складу «не зберігається»: після закриття сесії залишок знову 3.',
+        start: "BEGIN;\nUPDATE stock SET quantity = quantity - 1 WHERE item = 'вакцина';\nSELECT * FROM stock;",
+        check: 'SELECT item, quantity FROM stock ORDER BY item',
+        ref: "BEGIN; UPDATE stock SET quantity = quantity - 1 WHERE item = 'вакцина'; SELECT * FROM stock; COMMIT;",
+        require: [['COMMIT', /\b(commit|end)\b/i]],
+        hint: 'Транзакцію відкрито, але не завершено. Без <code>COMMIT</code> зміни зникають при закритті сесії.' },
+      { id: 'p14-w4', text: 'Скрипт оплати візиту 24 містить зайвий BEGIN і падає з помилкою «cannot start a transaction within a transaction».',
+        start: `BEGIN;\n${PAY(24, 280)}\nBEGIN;\nUPDATE visits SET paid = 1 WHERE id = 24;\nCOMMIT;`,
+        check: PAY_CHECK(24),
+        ref: `BEGIN; ${PAY(24, 280)} UPDATE visits SET paid = 1 WHERE id = 24; COMMIT;`,
+        forbid: [['вкладений BEGIN', /\bbegin\b[\s\S]*\bbegin\b/i]],
+        hint: 'Вкладених транзакцій у SQLite немає. Лишіть один <code>BEGIN</code> на початку.' },
+      { id: 'p14-w5', text: 'Переказ 100 балів від власника 1 власникові 2: зарахування скасовано, а списання відбулося. Зробіть переказ повністю.',
+        start: 'BEGIN;\nUPDATE bonus SET points = points + 100 WHERE owner_id = 2;\nROLLBACK;\nUPDATE bonus SET points = points - 100 WHERE owner_id = 1;',
+        check: 'SELECT owner_id, points FROM bonus ORDER BY owner_id',
+        ref: 'BEGIN; UPDATE bonus SET points = points + 100 WHERE owner_id = 2; UPDATE bonus SET points = points - 100 WHERE owner_id = 1; COMMIT;',
+        require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+        hint: 'Обидва UPDATE мають бути між одним <code>BEGIN</code> і одним <code>COMMIT</code>. <code>ROLLBACK</code> посередині тут зайвий.' },
+      { id: 'p14-w6', text: 'Мельник хоче передати 500 балів, а має лише 300. Переказ неможливий, тож бали мають лишитися як були. Зараз Бондар отримує 500 «з нізвідки».',
+        start: 'UPDATE bonus SET points = points + 500 WHERE owner_id = 2;\nUPDATE bonus SET points = points - 500 WHERE owner_id = 1;',
+        check: 'SELECT owner_id, points FROM bonus ORDER BY owner_id',
+        ref: 'BEGIN; UPDATE bonus SET points = points + 500 WHERE owner_id = 2; UPDATE bonus SET points = points - 500 WHERE owner_id = 1; ROLLBACK;',
+        require: [['BEGIN', /\bbegin\b/i], ['ROLLBACK', /\brollback\b/i]],
+        hint: 'CHECK відхиляє лише другу команду. Об’єднайте обидві в транзакцію і, побачивши помилку, завершіть її <code>ROLLBACK</code>.' },
+    ],
+  },
+  missions: [
+    { id: 'p14-1', who: 'nina', title: 'Оплата візиту', tables: ['visits', 'payments'],
+      think: ['Які дві зміни мають статися разом?', 'Що буде в базі, якщо між ними збій, а транзакції немає?'],
+      brief: 'Власник Ричарда оплатив візит 22 (1950 грн) сьогодні, 25.05.2026. Запишіть оплату і позначте візит як оплачений. Обидві зміни разом.',
+      start: '', check: PAY_CHECK(22),
+      ref: `BEGIN; ${PAY(22, 1950)} UPDATE visits SET paid = 1 WHERE id = 22; COMMIT;`,
+      require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+      hint: `<code>BEGIN;</code> → <code>${PAY(22, 1950)}</code> → <code>UPDATE visits SET paid = 1 WHERE id = 22;</code> → <code>COMMIT;</code>`,
+      impact: r => `Візит ${r.values[0][0]} оплачено: ${r.values[0][3]} грн, позначка paid = ${r.values[0][2]}. Каса і журнал збігаються.` },
+    { id: 'p14-2', who: 'oksana', title: 'Щеплення зі складу', tables: ['visits', 'stock'],
+      think: ['Що станеться, якщо візит запишеться, а вакцина зі складу не спишеться?', 'Як не помилитися з id нового візиту?'],
+      brief: 'Кролика Пухнастика (тварина 5) щепить лікарка Головко (лікар 4): візит 25.05.2026, вакцинація, 750 грн. Запишіть візит і спишіть одну вакцину зі складу разом.',
+      start: '', check: "SELECT (SELECT COUNT(*) FROM visits WHERE animal_id = 5 AND reason = 'вакцинація'), (SELECT quantity FROM stock WHERE item = 'вакцина')",
+      ref: "BEGIN; INSERT INTO visits (animal_id, vet_id, visit_date, reason, cost) VALUES (5, 4, '2026-05-25', 'вакцинація', 750); UPDATE stock SET quantity = quantity - 1 WHERE item = 'вакцина'; COMMIT;",
+      require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+      hint: "<code>INSERT INTO visits (animal_id, vet_id, visit_date, reason, cost) VALUES (5, 4, '2026-05-25', 'вакцинація', 750);</code> і <code>UPDATE stock SET quantity = quantity - 1 WHERE item = 'вакцина';</code> в одній транзакції. id не вказуйте: його дасть SQLite.",
+      impact: r => `Пухнастик щеплений. На складі лишилось вакцин: ${r.values[0][1]}.` },
+    { id: 'p14-3', who: 'lesia', title: 'Пробне видалення', tables: ['visits'],
+      think: ['Як подивитися на результат зміни, не зберігаючи її?', 'Чим має закінчитися скрипт?'],
+      brief: 'Хочу знати, скільки візитів лишиться, якщо прибрати всі огляди. Видаліть огляди, покажіть кількість візитів, але нічого не зберігайте.',
+      start: '', check: "SELECT reason, COUNT(*) FROM visits GROUP BY reason ORDER BY reason",
+      ref: "BEGIN; DELETE FROM visits WHERE reason = 'огляд'; SELECT COUNT(*) FROM visits; ROLLBACK;",
+      require: [['DELETE', /\bdelete\b/i], ['ROLLBACK', /\brollback\b/i]],
+      hint: "<code>BEGIN; DELETE FROM visits WHERE reason = 'огляд'; SELECT COUNT(*) FROM visits; ROLLBACK;</code>",
+      impact: () => 'Лікарка побачила відповідь, а журнал візитів лишився цілим.' },
+    { id: 'p14-4', who: 'nina', title: 'Пакет оплат', tables: ['payments'],
+      think: ['Чи всі три візити справді ще не оплачені? Подивіться в payments.', 'Що робити, якщо одна з трьох вставок впаде?'],
+      brief: 'Власник приніс одну суму за три візити: 23 (450 грн), 24 (280 грн) і 20 (750 грн, «ще не оплачений», каже він). Запишіть оплати пакетом: або всі три, або жодної.',
+      start: 'SELECT visit_id, amount FROM payments ORDER BY visit_id;\n',
+      check: 'SELECT COUNT(*), SUM(amount) FROM payments',
+      ref: `BEGIN; ${PAY(23, 450)} ${PAY(24, 280)} ${PAY(20, 750)} ROLLBACK;`,
+      require: [['BEGIN', /\bbegin\b/i], ['ROLLBACK', /\brollback\b/i]],
+      hint: 'Візит 20 уже оплачено, тож третя вставка порушить UNIQUE. Пакет «або все, або нічого» після такої помилки завершують <code>ROLLBACK</code>.',
+      impact: r => `Пакет відхилено: в касі, як і було, ${r.values[0][0]} оплат. Ніна повертає власникові гроші за візит 20 і просить оплатити 23 і 24 окремо.` },
+    { id: 'p14-5', who: 'max', title: 'Бонуси в родині', tables: ['bonus'],
+      think: ['Скільки команд і в якому порядку?', 'Що гарантує, що бали не зникнуть і не подвояться?'],
+      brief: 'Мельник (власник 1) дарує 120 бонусних балів сестрі, Коваленко (власник 3). Проведіть переказ.',
+      start: 'SELECT owner_id, points FROM bonus;\n', check: 'SELECT owner_id, points FROM bonus ORDER BY owner_id',
+      ref: 'BEGIN; UPDATE bonus SET points = points - 120 WHERE owner_id = 1; UPDATE bonus SET points = points + 120 WHERE owner_id = 3; COMMIT;',
+      require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+      hint: 'Списання з власника 1 і зарахування власникові 3 в одній транзакції.',
+      impact: r => `Бали після переказу: ${r.values.map(v => `власник ${v[0]}: ${v[1]}`).join(', ')}. Загальна сума не змінилась.` },
+    { id: 'p14-6', who: 'oksana', title: 'Знижка з перевіркою', tables: ['visits'],
+      think: ['Як переконатися, що знижка правильна, до збереження?', 'Що зробите, якщо SELECT покаже не те?'],
+      brief: 'Акція: усі огляди дешевшають на 10%. Змініть вартість оглядів, перевірте результат запитом усередині транзакції і збережіть.',
+      start: '', check: "SELECT id, cost FROM visits WHERE reason = 'огляд' ORDER BY id",
+      ref: "BEGIN; UPDATE visits SET cost = cost * 0.9 WHERE reason = 'огляд'; SELECT id, cost FROM visits WHERE reason = 'огляд'; COMMIT;",
+      require: [['BEGIN', /\bbegin\b/i], ['SELECT для перевірки', /\bselect\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+      hint: "<code>BEGIN; UPDATE visits SET cost = cost * 0.9 WHERE reason = 'огляд'; SELECT …; COMMIT;</code>",
+      impact: r => `Нові ціни оглядів: ${r.values.map(v => v[1]).join(', ')} грн.` },
+    { id: 'p14-7', bonus: true, who: 'lesia', title: 'Чипів не вистачає', tables: ['stock', 'visits'],
+      think: ['Скільки чипів на складі, а скільки треба?', 'На якій команді спрацює CHECK, і що тоді має статися з попередніми?'],
+      brief: 'Треба чипувати трьох собак (тварини 1, 8 і 20) одним записом: три візити «чипування» по 550 грн на 25.05.2026, лікар 4, і списання трьох чипів. Якщо чипів не вистачить, не записуйте нічого.',
+      start: "SELECT * FROM stock;\n", check: "SELECT (SELECT COUNT(*) FROM visits WHERE reason = 'чипування'), (SELECT quantity FROM stock WHERE item = 'чип')",
+      ref: "BEGIN; INSERT INTO visits (animal_id, vet_id, visit_date, reason, cost) VALUES (1, 4, '2026-05-25', 'чипування', 550), (8, 4, '2026-05-25', 'чипування', 550), (20, 4, '2026-05-25', 'чипування', 550); UPDATE stock SET quantity = quantity - 3 WHERE item = 'чип'; ROLLBACK;",
+      require: [['BEGIN', /\bbegin\b/i], ['ROLLBACK', /\brollback\b/i]],
+      hint: 'Чипів 2, потрібно 3: <code>UPDATE stock … - 3</code> порушить CHECK. Після помилки — <code>ROLLBACK</code>, щоб зникли й уже вставлені візити.',
+      impact: r => `Нічого не записано: чипувань у журналі, як і було, ${r.values[0][0]}, чипів на складі ${r.values[0][1]}. Оксана замовляє ще чипи.` },
+    { id: 'p14-8', bonus: true, who: 'nina', title: 'Закриття дня', tables: ['payments', 'visits'],
+      think: ['Як знайти всі неоплачені візити?', 'Як записати оплати одразу для всіх, без переліку вручну?'],
+      brief: 'Кінець дня: усі неоплачені візити оплачено готівкою. Однією транзакцією запишіть оплати для всіх візитів з <code>paid = 0</code> (сума = вартість візиту, дата 2026-05-25) і позначте їх оплаченими.',
+      start: 'SELECT id, cost FROM visits WHERE paid = 0;\n',
+      check: 'SELECT (SELECT COUNT(*) FROM visits WHERE paid = 0), (SELECT COUNT(*) FROM payments), (SELECT SUM(amount) FROM payments)',
+      ref: "BEGIN; INSERT INTO payments (visit_id, amount, paid_at) SELECT id, cost, '2026-05-25' FROM visits WHERE paid = 0; UPDATE visits SET paid = 1 WHERE paid = 0; COMMIT;",
+      require: [['BEGIN', /\bbegin\b/i], ['COMMIT', /\b(commit|end)\b/i]],
+      hint: "<code>INSERT INTO payments (visit_id, amount, paid_at) SELECT id, cost, '2026-05-25' FROM visits WHERE paid = 0;</code> Порядок важливий: спершу вставка, потім позначка, інакше вставляти вже не буде що.",
+      impact: r => `День закрито: неоплачених візитів ${r.values[0][0]}, оплат у касі ${r.values[0][1]} на ${r.values[0][2].toLocaleString('uk-UA')} грн.` },
+  ],
+  questions: [
+    'Що саме пішло б не так у дорученні 1, якби дві зміни були окремими транзакціями і між ними стався збій?',
+    'Чому після помилки всередині транзакції і подальшого <code>COMMIT</code> у базі лишається «перша зміна є, другої немає», а не «нічого» чи «обидві»?',
+    'Яку властивість ACID демонструє <code>ROLLBACK</code> у пакеті оплат, а яку — <code>CHECK</code> на складі?',
+    'Чому незавершена транзакція в кінці скрипту вважається втраченою? Що відбувається з нею в DB Browser, якщо закрити базу без «Записати зміни»?',
+  ],
+  deliverable: 'Тренажер готує до звітної роботи. Здача, як і раніше, на власному варіанті бази: <code>lab_work_14.sql</code> з усіма командами й перевірочними <code>SELECT</code>, <code>lab_work_14.db</code> у фінальному стані і <code>lab_work_14.md</code> з поясненнями до завдань 1, 3, 4 і 5.',
+  refs: 'Ті самі джерела, що й до <a href="#lecture-12">Лекції 12</a>: Павловський В. І., Петрашенко А. В. (КПІ) і посібник Н. О. Харів (розділ «Транзакції»).',
+  lecture: 'lecture-12',
+};
+</script>
 <script>'use strict';
 
 let SQL = null;
@@ -1724,6 +2235,7 @@ function h(html) {
 
 // ---------- SQL highlighting ----------
 const KEYWORDS = new Set(('select from where and or not in is null like between order by asc desc limit offset distinct as ' +
+  'begin commit rollback transaction end pragma alter add column cast check unique ' +
   'group having join left right inner outer cross on insert into values update set delete create table nulls first last ' +
   'case when then else end primary key references integer text real default union all exists').split(' '));
 const FUNCS = new Set('count sum avg min max lower upper length substr round coalesce ifnull date datetime strftime julianday printf format typeof'.split(' '));
@@ -1744,9 +2256,12 @@ function highlight(sql) {
 
 // ---------- running queries ----------
 // Every run starts from a fresh copy of the story DB, so experiments never leak between tasks.
+// Some lessons extend the story DB (e.g. the cash desk in Lecture 12); the current route decides which.
+let activeRoute = 'home';
 function freshDb() {
   const db = new SQL.Database();
   db.exec(SEED_SQL);
+  if (LESSON_SETUP[activeRoute]) db.exec(LESSON_SETUP[activeRoute]);
   return db;
 }
 function runSql(sql) {
@@ -2056,7 +2571,9 @@ function compareResults(mine, ref, ordered) {
     return `Очікується колонок: ${ref.columns.length}, у вашому результаті: ${mine.columns.length}. Перевірте перелік після SELECT.`;
   if (mine.values.length !== ref.values.length)
     return `Очікується рядків: ${ref.values.length}, у вас: ${mine.values.length}. Перевірте умову фільтрації.`;
-  const a = mine.values.map(rowKey), b = ref.values.map(rowKey);
+  // Floats like 252.00000000000003 vs 252 must compare equal.
+  const norm = row => JSON.stringify(row.map(v => (typeof v === 'number' ? Number(v.toFixed(6)) : v)));
+  const a = mine.values.map(norm), b = ref.values.map(norm);
   if (ordered && a.join('|') === b.join('|')) return null;
   const sa = [...a].sort().join('|'), sb = [...b].sort().join('|');
   if (sa !== sb) return 'Кількість рядків правильна, але значення інші. Перевірте умову і порядок колонок.';
@@ -2073,6 +2590,101 @@ function checkTask(task, sql, res) {
   const missing = (task.require ?? []).filter(([, re]) => !re.test(code)).map(([label]) => label);
   if (missing.length) return { solved: false, why: `Результат правильний, але завдання просить використати ${missing.join(' і ')}.` };
   return { solved: true };
+}
+
+// ---------- transactions: scripts, session state, crashes ----------
+function txOpen(db) {
+  // SQLite exposes no "in transaction" flag here, but a nested BEGIN fails exactly when one is open.
+  try { db.exec('BEGIN'); } catch { return true; }
+  db.exec('ROLLBACK');
+  return false;
+}
+function closeSession(db) {
+  if (!txOpen(db)) return false;
+  db.exec('ROLLBACK');
+  return true;
+}
+function queryOn(db, sql) {
+  const stmt = db.prepare(sql);
+  try {
+    const columns = stmt.getColumnNames();
+    const values = [];
+    while (stmt.step()) values.push(stmt.get());
+    return { columns, values };
+  } finally {
+    stmt.free();
+  }
+}
+// Like an interactive shell: a failing statement is reported and the script continues.
+function execScript(db, sql) {
+  return splitStatements(sql).map(text => {
+    const kind = (text.match(/^\s*(\w+)/)?.[1] ?? '').toLowerCase();
+    try {
+      const result = queryOn(db, text);
+      return { text, kind, ok: true, result, open: txOpen(db) };
+    } catch (e) {
+      return { text, kind, ok: false, error: e.message, open: txOpen(db) };
+    }
+  });
+}
+function runScriptState(sql, check, crashAfter = null) {
+  const db = freshDb();
+  try {
+    const before = queryOn(db, check);
+    const statements = splitStatements(sql);
+    const log = execScript(db, crashAfter === null ? sql : statements.slice(0, crashAfter + 1).join(';\n'));
+    const lostOpen = closeSession(db);
+    return { before, log, lostOpen, after: queryOn(db, check), total: statements.length };
+  } finally {
+    db.close();
+  }
+}
+function statusOf(entry) {
+  if (!entry.ok) return ['bad', `Помилка${entry.open ? ' · транзакція лишається відкритою' : ''}`];
+  if (entry.kind === 'begin') return ['tx', 'Транзакцію відкрито'];
+  if (entry.kind === 'commit' || entry.kind === 'end') return ['good', 'Зафіксовано'];
+  if (entry.kind === 'rollback') return ['undo', 'Скасовано все від BEGIN'];
+  if (entry.result.columns.length) return ['info', entry.open ? 'Результат · бачимо свої незафіксовані зміни' : 'Результат'];
+  return entry.open ? ['wait', 'Виконано · чекає COMMIT'] : ['auto', 'Виконано й одразу зафіксовано'];
+}
+function logHtml(log, { crashButtons = false, total = log.length } = {}) {
+  const rows = log.map((e, i) => {
+    const [cls, label] = statusOf(e);
+    const detail = !e.ok ? `<div class="log-detail err">${explainError(e.error)}</div>`
+      : e.result.columns.length ? `<div class="log-detail">${resultHtml({ ok: true, result: e.result })}</div>` : '';
+    const crash = crashButtons && i < total - 1 ? `<button class="btn crash-btn" data-crash="${i}" title="Що лишиться в базі, якщо після цієї команди зникне живлення">⚡ Збій тут</button>` : '';
+    return `<li class="log-row ${cls}"><span class="log-n">${i + 1}</span><code class="log-sql">${highlight(e.text)}</code><span class="log-chip">${label}</span>${crash}${detail}</li>`;
+  });
+  for (let i = log.length; i < total; i++) rows.push(`<li class="log-row skipped"><span class="log-n">${i + 1}</span><span class="log-chip">не виконано</span></li>`);
+  return `<ol class="tx-log">${rows.join('')}</ol>`;
+}
+function diffHtml(before, after) {
+  if (!after.columns.length) return '';
+  const key = r => JSON.stringify(r[0]);
+  const old = new Map(before.values.map(r => [key(r), r]));
+  const rows = after.values.map(r => {
+    const prev = old.get(key(r));
+    old.delete(key(r));
+    if (!prev) return { cells: r, cls: 'added' };
+    return { cells: r, changed: r.map((v, j) => JSON.stringify(v) !== JSON.stringify(prev[j])) };
+  });
+  for (const r of old.values()) rows.push({ cells: r, cls: 'removed' });
+  const head = after.columns.map(c => `<th>${esc(c)}</th>`).join('');
+  const body = rows.map(r => `<tr class="${r.cls ?? ''}">${r.cells.map((v, j) => {
+    const changed = r.changed?.[j];
+    const was = changed ? `<span class="was">${cellHtml(before.values.find(b => key(b) === key(r.cells))[j])}</span> ` : '';
+    return `<td class="${typeof v === 'number' ? 'num' : ''} ${changed ? 'changed' : ''}">${was}${cellHtml(v)}</td>`;
+  }).join('')}</tr>`).join('');
+  const changes = rows.filter(r => r.cls || r.changed?.some(Boolean)).length;
+  return `<div class="tbl-wrap"><table class="res diff"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <p class="res-meta">${changes ? `Змінено рядків: ${changes}` : 'Без змін: база така сама, як до скрипту.'}</p>`;
+}
+function stateHtml(state, title) {
+  const lost = state.lostOpen ? '<p class="tx-note">Скрипт закінчився з відкритою транзакцією. Коли сесія закривається без COMMIT, її зміни втрачаються.</p>' : '';
+  return `<div class="tx-state"><span class="scene-title">${title}</span>${lost}${diffHtml(state.before, state.after)}</div>`;
+}
+function formatScript(sql) {
+  return splitStatements(sql).map(s => `${s};`).join('\n');
 }
 
 // ---------- workbench ----------
@@ -2098,6 +2710,8 @@ function mountBench(container, cfg) {
       <div class="fb"></div>
     </div></div>`);
   container.replaceChildren(el);
+  const scriptMode = cfg.tasks.some(t => t.check);
+  if (scriptMode) $('[data-act="step"]', el).hidden = true;
 
   let liveTimer = null;
   const editor = makeEditor(cfg.start, () => run(), () => {
@@ -2108,6 +2722,12 @@ function mountBench(container, cfg) {
   function livePreview() {
     const live = $('.live', el);
     if (!editor.value.trim()) { live.textContent = ''; return; }
+    if (scriptMode) {
+      const n = splitStatements(editor.value).length;
+      live.className = 'live ok';
+      live.textContent = `Команд у скрипті: ${n}. Перевіряється стан бази після виконання.`;
+      return;
+    }
     const res = runSql(editor.value);
     live.className = 'live' + (res.ok ? ' ok' : '');
     if (!res.ok) { live.textContent = 'Запит ще не дописано або містить помилку.'; return; }
@@ -2144,8 +2764,38 @@ function mountBench(container, cfg) {
     if (count) count.textContent = `${done} / ${cfg.tasks.length}`;
   };
 
+  function runScriptTask(cur) {
+    const sql = editor.value;
+    const state = runScriptState(sql, cur.check);
+    $('.extra', el).innerHTML = '';
+    $('.out', el).innerHTML = logHtml(state.log) + stateHtml(state, 'Стан бази після скрипту');
+    const fb = $('.fb', el);
+    fb.innerHTML = '';
+    const code = stripComments(sql);
+    const expected = runScriptState(cur.ref, cur.check).after;
+    const why = compareResults(state.after, expected, /\border\s+by\b/i.test(cur.check));
+    const missing = (cur.require ?? []).filter(([, re]) => !re.test(code)).map(([label]) => label);
+    const forbidden = (cur.forbid ?? []).filter(([, re]) => re.test(code)).map(([label]) => label);
+    let verdict = null;
+    if (why) verdict = `Стан бази після скрипту не той, що потрібен. ${why.replace('Перевірте умову фільтрації.', '').replace(' Перевірте умову і порядок колонок.', '')}`;
+    else if (missing.length) verdict = `Стан бази правильний, але завдання просить використати ${missing.join(' і ')}.`;
+    else if (forbidden.length) verdict = `Стан бази правильний, але в скрипті лишився ${forbidden.join(', ')}.`;
+    if (!verdict) {
+      markSolved(cur.id);
+      fb.innerHTML = cur.impact ? impactHtml(cur, state.after)
+        : `<div class="feedback ok"><span class="stamp">Зараховано</span><span>${current() ? 'Наступне завдання вже відкрито.' : 'Вправу завершено.'}</span></div>`;
+      drawTasks();
+      cfg.onSolved?.(cur);
+      return;
+    }
+    fb.innerHTML = `<div class="feedback no"><strong>Ще не зовсім.</strong><span>${verdict}</span>
+      <button class="btn expect-btn" data-act="expected">Показати очікуваний стан бази</button></div>`;
+  }
+
   function run() {
     const sql = editor.value;
+    const scriptTask = current();
+    if (scriptTask?.check) return runScriptTask(scriptTask);
     const res = runSql(sql);
     $('.extra', el).innerHTML = '';
     $('.out', el).innerHTML = resultHtml(res);
@@ -2176,7 +2826,9 @@ function mountBench(container, cfg) {
     const cur = current() ?? cfg.tasks.at(-1);
     if (act === 'run') run();
     if (act === 'step') { $('.out', el).innerHTML = ''; $('.fb', el).innerHTML = ''; mountStepper($('.extra', el), editor.value); }
-    if (act === 'expected' && cur) {
+    if (act === 'expected' && cur?.check) {
+      $('.extra', el).innerHTML = `<div class="expected">${stateHtml(runScriptState(cur.ref, cur.check), 'Очікуваний стан бази')}</div>`;
+    } else if (act === 'expected' && cur) {
       $('.extra', el).innerHTML = `<div class="expected"><span class="scene-title">Очікуваний результат</span>${resultHtml(runSql(cur.ref))}
         <p class="res-meta">Порівняйте з вашим: кількість рядків, колонки, порядок.</p></div>`;
     }
@@ -2186,7 +2838,7 @@ function mountBench(container, cfg) {
       $('[data-act="solution"]', el).hidden = false;
     }
     if (act === 'solution' && cur) {
-      $('.extra', el).innerHTML = `<div class="solution"><pre>${highlight(formatSql(cur.ref))}</pre></div>`;
+      $('.extra', el).innerHTML = `<div class="solution"><pre>${highlight(cur.check ? formatScript(cur.ref) : formatSql(cur.ref))}</pre></div>`;
     }
   });
   drawTasks();
@@ -2204,6 +2856,41 @@ function formatSql(sql) {
     .replace(/\u0000/g, 'AND') + ';';
 }
 
+// ---------- transaction timelines in lecture text ----------
+function enhanceTx(pre) {
+  const original = pre.textContent.replace(/\n$/, '');
+  const watch = pre.dataset.watch;
+  const box = h(`<div class="runnable tx">
+    <button class="btn reset-btn" data-act="restore" hidden>Повернути приклад</button>
+    <div class="ed-slot"></div>
+    <div class="run-bar">
+      <button class="btn btn-primary" data-act="run">Виконати <span class="kbd">Ctrl+Enter</span></button>
+      <span class="run-hint">Після запуску біля кожної команди з’явиться «⚡ Збій тут»: подивіться, що лишиться в базі, якщо живлення зникне саме там.</span>
+    </div><div class="run-out"></div></div>`);
+  pre.replaceWith(box);
+  const out = $('.run-out', box);
+  const restore = $('[data-act="restore"]', box);
+  const run = () => {
+    const state = runScriptState(editor.value, watch);
+    out.innerHTML = logHtml(state.log, { crashButtons: true, total: state.total }) + stateHtml(state, 'Стан бази після виконання');
+  };
+  const editor = makeEditor(original, run, () => { restore.hidden = editor.value === original; });
+  $('.ed-slot', box).replaceWith(editor.el);
+  box.addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    const crash = e.target.closest('[data-crash]');
+    if (act === 'run') run();
+    if (act === 'restore') { editor.value = original; restore.hidden = true; out.innerHTML = ''; }
+    if (crash) {
+      const k = +crash.dataset.crash;
+      const state = runScriptState(editor.value, watch, k);
+      out.innerHTML = logHtml(state.log, { crashButtons: true, total: state.total })
+        + `<p class="tx-note crash">⚡ Живлення зникло після команди ${k + 1}. Усе, що не було зафіксовано, втрачено.</p>`
+        + stateHtml({ ...state, lostOpen: false }, `Стан бази після збою`);
+    }
+  });
+}
+
 // ---------- predict-then-run questions ----------
 function mountQuiz(slot, quiz) {
   const el = h(`<div class="quiz">
@@ -2213,7 +2900,7 @@ function mountQuiz(slot, quiz) {
     <div class="quiz-options">${quiz.options.map((o, i) => `<button class="btn quiz-opt" data-i="${i}">${o}</button>`).join('')}</div>
     <div class="quiz-after" hidden>
       <p class="quiz-verdict"></p><p>${quiz.explain}</p>
-      <button class="btn btn-primary" data-act="check">Перевірити запуском</button>
+      ${quiz.noRun ? '' : '<button class="btn btn-primary" data-act="check">Перевірити запуском</button>'}
       <div class="quiz-out"></div>
     </div></div>`);
   slot.replaceWith(el);
@@ -2230,7 +2917,17 @@ function mountQuiz(slot, quiz) {
       $('.quiz-verdict', el).innerHTML = right ? '<span class="stamp">Влучно</span>' : '<strong>Не зовсім.</strong>';
       $('.quiz-after', el).hidden = false;
     }
-    if (e.target.closest('[data-act="check"]')) $('.quiz-out', el).innerHTML = resultHtml(runSql(quiz.sql));
+    if (e.target.closest('[data-act="check"]')) {
+      if (quiz.watch) {
+        const state = runScriptState(quiz.sql, quiz.watch, quiz.crashAfter ?? null);
+        $('.quiz-out', el).innerHTML = logHtml(state.log, { total: state.total }) + stateHtml(state, quiz.crashAfter != null ? 'Стан бази після збою' : 'Стан бази після скрипту');
+      } else if (quiz.script) {
+        const db = freshDb();
+        try { $('.quiz-out', el).innerHTML = logHtml(execScript(db, quiz.sql)); } finally { db.close(); }
+      } else {
+        $('.quiz-out', el).innerHTML = resultHtml(runSql(quiz.sql));
+      }
+    }
   });
 }
 
@@ -2291,8 +2988,9 @@ let sandboxSql = 'SELECT *\nFROM animals\nLIMIT 10;';
 const LECTURES = {
   'lecture-10': ['l10-'],
   'lecture-11': ['l11-'],
+  'lecture-12': ['l12-'],
 };
-const PRACTICES = { 'practice-12': PRACTICE_12, 'practice-13': PRACTICE_13 };
+const PRACTICES = { 'practice-12': PRACTICE_12, 'practice-13': PRACTICE_13, 'practice-14': PRACTICE_14 };
 
 const ROUTES = {
   home: renderHome,
@@ -2300,6 +2998,8 @@ const ROUTES = {
   'practice-12': main => renderPractice(main, PRACTICE_12),
   'lecture-11': main => renderLecture(main, 'lecture-11'),
   'practice-13': main => renderPractice(main, PRACTICE_13),
+  'lecture-12': main => renderLecture(main, 'lecture-12'),
+  'practice-14': main => renderPractice(main, PRACTICE_14),
   sandbox: renderSandbox,
 };
 
@@ -2330,7 +3030,10 @@ function renderRail() {
       ${link('lecture-10', 'Л10', 'Сортування і фільтрація')}
       ${link('practice-12', 'П12', 'Практика: тиждень у «Лапі»')}
       ${link('lecture-11', 'Л11', 'Форматування таблиць')}
-      ${link('practice-13', 'П13', 'Практика: кінець місяця')}</div>`;
+      ${link('practice-13', 'П13', 'Практика: кінець місяця')}</div>
+    <div class="rail-group"><div class="rail-label">Модуль 3</div>
+      ${link('lecture-12', 'Л12', 'Транзакції, ACID, блокування')}
+      ${link('practice-14', 'П14', 'Практика: каса «Лапи»')}</div>`;
 }
 
 function renderHome(main) {
@@ -2351,6 +3054,8 @@ function renderHome(main) {
       ${card('practice-12', 'Практика 12', 'Тиждень у «Лапі»', 'Розминка, 9 доручень і 3 додаткові')}
       ${card('lecture-11', 'Лекція 11', 'Форматування таблиць', 'printf(), дати, coalesce()')}
       ${card('practice-13', 'Практика 13', 'Кінець місяця в «Лапі»', 'Розминка, 8 доручень і 2 додаткові')}
+      ${card('lecture-12', 'Лекція 12', 'Транзакції, ACID і блокування', 'BEGIN, COMMIT, ROLLBACK')}
+      ${card('practice-14', 'Практика 14', 'Каса «Лапи»', 'Розминка, 6 доручень і 2 додаткові')}
       <a class="card" href="#sandbox"><span class="eyebrow">Вільний режим</span><span class="card-title">Пісочниця</span>
         <span class="card-meta">Будь-які запити до бази «Лапа», з покроковим переглядом</span></a>
     </div>
@@ -2378,8 +3083,10 @@ function renderLecture(main, id) {
     b.addEventListener('click', () => sec.scrollIntoView({ behavior: 'smooth' }));
     toc.append(b);
   });
+  page.querySelectorAll('pre.sql[data-tx]').forEach(enhanceTx);
   page.querySelectorAll('pre.sql[data-run]').forEach(enhanceRunnable);
-  page.querySelectorAll('[data-dict]').forEach(slot => { slot.outerHTML = slot.dataset.dict === '11' ? DICTIONARY_11_HTML : DICTIONARY_HTML; });
+  const dicts = { 10: DICTIONARY_HTML, 11: DICTIONARY_11_HTML, 12: DICTIONARY_12_HTML };
+  page.querySelectorAll('[data-dict]').forEach(slot => { slot.outerHTML = dicts[slot.dataset.dict || 10]; });
   page.querySelectorAll('[data-quiz]').forEach(slot => mountQuiz(slot, QUIZZES[slot.dataset.quiz]));
   page.querySelectorAll('[data-ex]').forEach(slot => {
     const ex = LECTURE_EXERCISES[slot.dataset.ex];
@@ -2442,12 +3149,13 @@ function renderPractice(main, cfg) {
         card.append(body);
         const solved = state === 'solved';
         const bench = mountBench($('.slot', body), {
-          tables: m.tables, start: solved ? formatSql(m.ref) : m.start,
-          tasks: [{ id: m.id, text: 'Напишіть запит, що виконує доручення.', ref: m.ref, require: m.require, hint: m.hint, impact: m.impact, scene: m.scene }],
+          tables: m.tables, start: solved ? (m.check ? formatScript(m.ref) : formatSql(m.ref)) : m.start,
+          tasks: [{ id: m.id, text: m.check ? 'Напишіть скрипт, що виконує доручення. Перевіряється стан бази після нього.' : 'Напишіть запит, що виконує доручення.',
+            ref: m.ref, check: m.check, require: m.require, forbid: m.forbid, hint: m.hint, impact: m.impact, scene: m.scene }],
           onSolved: () => showNext(card, i),
         });
         if (solved) {
-          $('.fb', bench).innerHTML = impactHtml(m, runSql(m.ref).result);
+          $('.fb', bench).innerHTML = impactHtml(m, m.check ? runScriptState(m.ref, m.check).after : runSql(m.ref).result);
           showNext(card, i);
         }
       }
@@ -2475,7 +3183,7 @@ function renderSandbox(main) {
       <p class="lead">Будь-які запити до бази «Лапа». Можна навіть видаляти дані: кожен запуск починається з чистої копії бази.</p></header>
     <div class="slot"></div></div>`);
   main.replaceChildren(page);
-  mountBench($('.slot', page), { tables: SCHEMA.map(t => t.name), start: sandboxSql, tasks: [] });
+  mountBench($('.slot', page), { tables: [...new Set([...SCHEMA.map(t => t.name), ...(LESSON_TABLES.sandbox ?? [])])], start: sandboxSql, tasks: [] });
 }
 
 // ---------- router ----------
@@ -2485,6 +3193,7 @@ function currentRoute() {
 }
 function route() {
   const r = currentRoute();
+  activeRoute = r;
   const main = $('#view');
   ROUTES[r](main);
   renderRail();
